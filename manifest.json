@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Productivity Suite",
+  "name": "GW Tracker",
   "version": "1.1",
   "description": "Combines tab saving, Twitter tools, and Gleam helper.",
   "permissions": [
@@ -14,7 +14,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Productivity Suite",
+    "default_title": "GW Tracker",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

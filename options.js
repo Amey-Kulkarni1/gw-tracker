@@ -109,7 +109,7 @@ async function handleExportAll() {
     const a = document.createElement("a");
     a.href = url;
     const date = new Date().toISOString().slice(0, 10);
-    a.download = `productivity-suite-backup-${date}.json`;
+    a.download = `gw-tracker-backup-${date}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
