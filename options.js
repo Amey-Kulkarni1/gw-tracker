@@ -1,0 +1,650 @@
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize both feature modules
+  saveForLaterApp.init();
+  twitterApp.init();
+
+  // Initialize main data management listeners
+  document
+    .getElementById("exportData")
+    .addEventListener("click", handleExportAll);
+  document
+    .getElementById("importData")
+    .addEventListener("click", () =>
+      document.getElementById("importFile").click()
+    );
+  document
+    .getElementById("importFile")
+    .addEventListener("change", handleImport);
+});
+
+// =======================================================
+// UNIVERSAL MESSAGE & DATA HANDLERS
+// =======================================================
+function showMessage(text, type) {
+  const messageDiv = document.getElementById("message");
+  messageDiv.textContent = text;
+  messageDiv.className = `message ${type}`;
+  messageDiv.style.display = "block";
+  setTimeout(() => {
+    messageDiv.style.display = "none";
+  }, 5000);
+}
+
+async function handleExportAll() {
+  try {
+    const sflData = await chrome.storage.local.get(["savedTabs"]);
+    const twitterData = await chrome.storage.local.get(["twitterAccounts"]);
+
+    const combinedData = {
+      saveForLaterData: sflData.savedTabs || [],
+      twitterAccountsData: twitterData.twitterAccounts || [],
+    };
+
+    if (
+      combinedData.saveForLaterData.length === 0 &&
+      combinedData.twitterAccountsData.length === 0
+    ) {
+      showMessage("No data to export.", "error");
+      return;
+    }
+
+    const dataStr = JSON.stringify(combinedData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const date = new Date().toISOString().slice(0, 10);
+    a.download = `productivity-suite-backup-${date}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showMessage("Combined data exported successfully!", "success");
+  } catch (error) {
+    showMessage(`Export failed: ${error.message}`, "error");
+  }
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      let sflImported = 0;
+      let twitterImported = 0;
+
+      // Case 1: Combined backup file
+      if (data.saveForLaterData || data.twitterAccountsData) {
+        if (data.saveForLaterData) {
+          await saveForLaterApp.importData(data.saveForLaterData);
+          sflImported = data.saveForLaterData.length;
+        }
+        if (data.twitterAccountsData) {
+          await twitterApp.importData(data.twitterAccountsData);
+          twitterImported = data.twitterAccountsData.length;
+        }
+      }
+      // Case 2: Old "Save for Later" backup (is an array of tabs)
+      else if (Array.isArray(data) && data[0] && data[0].dateAdded) {
+        await saveForLaterApp.importData(data);
+        sflImported = data.length;
+      }
+      // Case 3: Old "Twitter" backup (is an array of accounts)
+      else if (Array.isArray(data) && data[0] && data[0].searchUrl) {
+        await twitterApp.importData(data);
+        twitterImported = data.length;
+      } else {
+        throw new Error("File format not recognized.");
+      }
+
+      showMessage(
+        `Import successful! Added ${sflImported} saved items and ${twitterImported} Twitter accounts.`,
+        "success"
+      );
+    } catch (error) {
+      showMessage(`Import failed: ${error.message}`, "error");
+    } finally {
+      event.target.value = null; // Reset file input
+    }
+  };
+  reader.readAsText(file);
+}
+
+// =======================================================
+// FEATURE 1: SAVE FOR LATER APP
+// =======================================================
+const saveForLaterApp = {
+  savedTabs: [],
+  editingId: null,
+  lastCheckboxIndex: null,
+
+  init() {
+    this.loadSavedTabs();
+    this.setupEventListeners();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("action") === "add") {
+      document.getElementById("sflUrl").value = decodeURIComponent(
+        urlParams.get("url") || ""
+      );
+      this.showAddForm();
+    }
+
+    // LISTENER FOR AUTO-UPDATES
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'local' && changes.savedTabs) {
+        this.savedTabs = changes.savedTabs.newValue || [];
+        this.render();
+      }
+    });
+  },
+
+  setupEventListeners() {
+    document
+      .getElementById("sflSaveForm")
+      .addEventListener("submit", this.handleSave.bind(this));
+    document
+      .getElementById("sflAddNew")
+      .addEventListener("click", this.showAddForm.bind(this));
+    document
+      .getElementById("sflCancelAdd")
+      .addEventListener("click", this.hideAddForm.bind(this));
+    document
+      .getElementById("sflSortBy")
+      .addEventListener("change", this.render.bind(this));
+    document
+      .getElementById("sflSortOrder")
+      .addEventListener("change", this.render.bind(this));
+    document
+      .getElementById("sflOpenTodays")
+      .addEventListener("click", this.openTodaysUrls.bind(this));
+    document
+      .getElementById("sflOpenTomorrows")
+      .addEventListener("click", this.openTomorrowsUrls.bind(this));
+    document
+      .getElementById("sflDeleteSelected")
+      .addEventListener("click", this.handleDeleteSelected.bind(this));
+    document
+      .getElementById("sflSelectAllCheckbox")
+      .addEventListener("change", this.handleSelectAll.bind(this));
+    document
+      .getElementById("sflTabsList")
+      .addEventListener("click", this.handleTabsListClick.bind(this));
+    document
+      .getElementById("sflTabsList")
+      .addEventListener("change", (e) => {
+        if (e.target.classList.contains("tab-date-picker")) {
+          this.handleDateChange(e);
+        } else if (e.target.classList.contains("item-checkbox")) {
+          this.updateSelectAllState();
+        }
+      });
+    document
+      .getElementById("sflTabsList")
+      .addEventListener(
+        "click",
+        this.handleSavedItemsCheckboxClick.bind(this),
+        true
+      );
+    document.addEventListener("keydown", this.handleOptionsPageKeydown.bind(this));
+  },
+
+  handleSavedItemsCheckboxClick(e) {
+    if (!e.target.classList.contains("item-checkbox")) return;
+    const boxes = Array.from(
+      document.querySelectorAll("#sflTabsList .item-checkbox")
+    );
+    const currentIdx = boxes.indexOf(e.target);
+    if (currentIdx === -1) return;
+    if (e.shiftKey && this.lastCheckboxIndex !== null) {
+      e.preventDefault();
+      const start = Math.min(this.lastCheckboxIndex, currentIdx);
+      const end = Math.max(this.lastCheckboxIndex, currentIdx);
+      for (let i = start; i <= end; i++) boxes[i].checked = true;
+      this.updateSelectAllState();
+    }
+    this.lastCheckboxIndex = currentIdx;
+  },
+
+  handleOptionsPageKeydown(e) {
+    if (e.key !== "Delete") return;
+    const el = document.activeElement;
+    if (el && el.tagName === "INPUT") {
+      const t = el.type;
+      if (
+        t === "text" ||
+        t === "url" ||
+        t === "date" ||
+        t === "search" ||
+        t === "number" ||
+        t === "email" ||
+        t === "password"
+      ) {
+        return;
+      }
+    }
+    if (el && el.tagName === "TEXTAREA") return;
+    if (el && el.tagName === "SELECT") return;
+    const selected = document.querySelectorAll(
+      "#sflTabsList .item-checkbox:checked"
+    );
+    if (selected.length === 0) return;
+    e.preventDefault();
+    this.handleDeleteSelected();
+  },
+
+  async loadSavedTabs() {
+    const result = await chrome.storage.local.get(["savedTabs"]);
+    this.savedTabs = result.savedTabs || [];
+    this.render();
+  },
+
+  async saveTabsToStorage() {
+    try {
+      await chrome.storage.local.set({ savedTabs: this.savedTabs });
+      return true;
+    } catch (error) {
+      showMessage("Error saving items: " + error.message, "error");
+      return false;
+    }
+  },
+
+  async importData(data) {
+    const result = await chrome.storage.local.get(["savedTabs"]);
+    this.savedTabs = result.savedTabs || [];
+    const existingUrls = new Set(this.savedTabs.map((tab) => tab.url));
+    const newItems = data.filter(
+      (item) => item.url && !existingUrls.has(item.url)
+    );
+    this.savedTabs.push(...newItems);
+    await this.saveTabsToStorage();
+    this.render();
+  },
+
+  render() {
+    const tabsList = document.getElementById("sflTabsList");
+    const noTabs = document.getElementById("sflNoTabs");
+    this.lastCheckboxIndex = null;
+    if (this.savedTabs.length === 0) {
+      tabsList.innerHTML = "";
+      noTabs.style.display = "block";
+      return;
+    }
+    noTabs.style.display = "none";
+
+    const sortedTabs = [...this.savedTabs].sort((a, b) => {
+      // 1. Prioritize Empty Dates
+      if (!a.date && b.date) return -1;
+      if (a.date && !b.date) return 1;
+      if (!a.date && !b.date) {
+        // Both empty dates: sort by prize (highest USD first; text prizes sort after numbers)
+        const aPrize = typeof a.prize === "number" ? a.prize : 0;
+        const bPrize = typeof b.prize === "number" ? b.prize : 0;
+        return bPrize - aPrize;
+      }
+
+      // 2. Normal Sorting
+      const sortBy = document.getElementById("sflSortBy").value;
+      const sortOrder = document.getElementById("sflSortOrder").value;
+
+      let aVal, bVal;
+
+      if (sortBy === "title") {
+        aVal = a.title.toLowerCase();
+        bVal = b.title.toLowerCase();
+      } else {
+        // Date or DateAdded
+        aVal = new Date(sortBy === "date" ? a.date : a.dateAdded);
+        bVal = new Date(sortBy === "date" ? b.date : b.dateAdded);
+      }
+
+      let primaryCompare;
+      if (aVal < bVal) primaryCompare = sortOrder === "asc" ? -1 : 1;
+      else if (aVal > bVal) primaryCompare = sortOrder === "asc" ? 1 : -1;
+      else primaryCompare = 0;
+
+      // If dates are equal, sort by prize (highest USD first)
+      if (primaryCompare === 0 && sortBy === "date") {
+        const aPrize = typeof a.prize === "number" ? a.prize : 0;
+        const bPrize = typeof b.prize === "number" ? b.prize : 0;
+        return bPrize - aPrize;
+      }
+
+      return primaryCompare;
+    });
+
+    tabsList.innerHTML = sortedTabs
+      .map((tab) => {
+        const isToday = (dateStr) => {
+          if (!dateStr) return false;
+          const date = new Date(dateStr + "T00:00:00");
+          const today = new Date();
+          return (
+            date.getFullYear() === today.getFullYear() &&
+            date.getMonth() === today.getMonth() &&
+            date.getDate() === today.getDate()
+          );
+        };
+
+        const escapeHtml = (text) => {
+          const d = document.createElement("div");
+          d.textContent = text;
+          return d.innerHTML;
+        };
+
+        const dateValue = tab.date ? tab.date : "";
+        const emptyClass = !tab.date ? "empty-date" : "";
+        const todayClass = isToday(tab.date) ? 'style="border-color: #4285f4; background: #1e3a5f;"' : "";
+
+        const prizeHtml =
+          tab.prize != null && tab.prize !== ""
+            ? `<span class="tab-prize">${
+                typeof tab.prize === "number"
+                  ? "$" + tab.prize.toLocaleString()
+                  : String(tab.prize)
+              }</span>`
+            : "";
+
+        return `
+          <div class="tab-item" data-id="${tab.id}">
+            <div class="item-selection"><input type="checkbox" class="item-checkbox" data-id="${tab.id}"></div>
+            <div class="tab-info">
+              <a href="${escapeHtml(tab.url)}" class="tab-title-link" target="_blank">${escapeHtml(tab.title)}</a>
+              ${prizeHtml}
+            </div>
+            <div class="tab-actions">
+              <input type="date" class="tab-date-picker ${emptyClass}" value="${dateValue}" data-id="${tab.id}" ${todayClass}>
+              <button class="btn-danger btn-small" data-action="delete">Delete</button>
+            </div>
+          </div>`;
+      })
+      .join("");
+    this.updateSelectAllState();
+  },
+
+  async handleSave(e) {
+    e.preventDefault();
+    const url = document.getElementById("sflUrl").value.trim();
+    const date = document.getElementById("sflDate").value;
+    if (!url || !date) return;
+
+    // =======================================================
+    // ADDED DUPLICATE CHECK
+    // =======================================================
+    // This new block checks if the URL is already saved for the exact same date
+    // before adding or updating it.
+    const isDuplicate = this.savedTabs.some(
+      (tab) => tab.url === url && tab.date === date && tab.id !== this.editingId
+    );
+
+    if (isDuplicate) {
+      showMessage("This URL is already saved for this exact date.", "error");
+      return; // Stop the function if a duplicate is found
+    }
+    // =======================================================
+    // END OF ADDED CODE
+    // =======================================================
+
+    const createTitleFromUrl = (url) => {
+      if (url.length > 150) {
+        return url.substring(0, 150) + "...";
+      }
+      return url;
+    };
+
+    const tabData = {
+      id: this.editingId || Date.now().toString(),
+      title: createTitleFromUrl(url), // Use the new helper function here
+      url,
+      date,
+      dateAdded: this.editingId
+        ? this.savedTabs.find((t) => t.id === this.editingId)?.dateAdded
+        : new Date().toISOString(),
+    };
+
+    if (this.editingId) {
+      const index = this.savedTabs.findIndex((t) => t.id === this.editingId);
+      if (index >= 0) this.savedTabs[index] = tabData;
+    } else {
+      this.savedTabs.push(tabData);
+    }
+
+    if (await this.saveTabsToStorage()) {
+      showMessage("Item saved successfully!", "success");
+      this.hideAddForm();
+      this.render();
+    }
+  },
+
+  async handleDateChange(e) {
+    const id = e.target.dataset.id;
+    const newDate = e.target.value;
+    const tabIndex = this.savedTabs.findIndex(t => t.id === id);
+
+    if (tabIndex === -1) return;
+
+    // Optional: Duplicate Check for new date (skipping for now to be less annoying on direct edits)
+
+    this.savedTabs[tabIndex].date = newDate;
+
+    if (await this.saveTabsToStorage()) {
+      // Visual feedback
+      const originalBorder = e.target.style.borderColor;
+      e.target.style.borderColor = "#4285f4";
+      setTimeout(() => {
+        e.target.style.borderColor = originalBorder;
+        // Re-render to sort if sort-by-date is active, but maybe delay it or wait for refresh?
+        // For now, let's NOT re-render immediately to avoid jumpiness, 
+        // unless the user refreshes or changes sort.
+        // But we SHOULD update valid/invalid styling
+        if (newDate) {
+          e.target.classList.remove("empty-date");
+        } else {
+          e.target.classList.add("empty-date");
+        }
+      }, 500);
+    }
+  },
+
+  handleTabsListClick(e) {
+    if (!e.target.matches(".btn-small")) return;
+    const id = e.target.closest(".tab-item").dataset.id;
+    const action = e.target.dataset.action;
+
+    if (action === "delete") {
+      if (!confirm("Are you sure?")) return;
+      this.savedTabs = this.savedTabs.filter((t) => t.id !== id);
+      this.saveTabsToStorage().then(() => this.render());
+    }
+  },
+
+  async handleDeleteSelected() {
+    const selectedIds = Array.from(
+      document.querySelectorAll("#sflTabsList .item-checkbox:checked")
+    ).map((cb) => cb.dataset.id);
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} items?`)) return;
+    this.savedTabs = this.savedTabs.filter(
+      (tab) => !selectedIds.includes(tab.id)
+    );
+    if (await this.saveTabsToStorage()) this.render();
+  },
+
+  handleSelectAll(e) {
+    document
+      .querySelectorAll("#sflTabsList .item-checkbox")
+      .forEach((cb) => (cb.checked = e.target.checked));
+  },
+
+  updateSelectAllState() {
+    const all = document.querySelectorAll("#sflTabsList .item-checkbox");
+    const checked = document.querySelectorAll(
+      "#sflTabsList .item-checkbox:checked"
+    );
+    const selectAll = document.getElementById("sflSelectAllCheckbox");
+    if (all.length > 0 && all.length === checked.length) {
+      selectAll.checked = true;
+      selectAll.indeterminate = false;
+    } else if (checked.length > 0) {
+      selectAll.checked = false;
+      selectAll.indeterminate = true;
+    } else {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    }
+  },
+
+  openTodaysUrls() {
+    const isToday = (d) =>
+      new Date(d).toDateString() === new Date().toDateString();
+    this.savedTabs
+      .filter((t) => isToday(t.date))
+      .forEach((t) => chrome.tabs.create({ url: t.url }));
+  },
+
+  openTomorrowsUrls() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = (d) =>
+      new Date(d).toDateString() === tomorrow.toDateString();
+    this.savedTabs
+      .filter((t) => isTomorrow(t.date))
+      .forEach((t) => chrome.tabs.create({ url: t.url }));
+  },
+
+  showAddForm() {
+    document.getElementById("sflAddForm").style.display = "block";
+    document.getElementById("sflUrl").focus();
+    if (!document.getElementById("sflDate").value) {
+      document.getElementById("sflDate").value = new Date()
+        .toISOString()
+        .split("T")[0];
+    }
+  },
+
+  hideAddForm() {
+    document.getElementById("sflAddForm").style.display = "none";
+    document.getElementById("sflSaveForm").reset();
+    this.editingId = null;
+  },
+};
+
+// =======================================================
+// FEATURE 2: TWITTER APP
+// =======================================================
+const twitterApp = {
+  accounts: [],
+
+  init() {
+    this.loadAccounts();
+    this.setupEventListeners();
+  },
+
+  setupEventListeners() {
+    document
+      .getElementById("twitterAddForm")
+      .addEventListener("submit", this.handleAdd.bind(this));
+    document
+      .getElementById("twitterAccountsList")
+      .addEventListener("click", this.handleListClick.bind(this));
+  },
+
+  async loadAccounts() {
+    const data = await chrome.storage.local.get({ twitterAccounts: [] });
+    this.accounts = data.twitterAccounts;
+    this.render();
+  },
+
+  async saveAccountsToStorage() {
+    try {
+      await chrome.storage.local.set({ twitterAccounts: this.accounts });
+      return true;
+    } catch (error) {
+      showMessage("Error saving accounts: " + error.message, "error");
+      return false;
+    }
+  },
+
+  async importData(data) {
+    const result = await chrome.storage.local.get(["twitterAccounts"]);
+    this.accounts = result.twitterAccounts || [];
+    const existingUsernames = new Set(this.accounts.map((acc) => acc.username));
+    const newItems = data.filter(
+      (item) => item.username && !existingUsernames.has(item.username)
+    );
+    this.accounts.push(...newItems);
+    await this.saveAccountsToStorage();
+    this.render();
+  },
+
+  render() {
+    const list = document.getElementById("twitterAccountsList");
+    const noAccounts = document.getElementById("twitterNoAccounts");
+    if (this.accounts.length === 0) {
+      list.innerHTML = "";
+      noAccounts.style.display = "block";
+      return;
+    }
+    noAccounts.style.display = "none";
+
+    list.innerHTML = this.accounts
+      .map((account) => {
+        const escapeHtml = (text) => {
+          const d = document.createElement("div");
+          d.textContent = text;
+          return d.innerHTML;
+        };
+        return `
+          <div class="tab-item" data-username="${escapeHtml(account.username)}">
+            <div class="tab-info">
+              <div class="tab-title">${escapeHtml(account.username)}</div>
+              <div class="tab-date">URL: ${escapeHtml(account.searchUrl)}</div>
+            </div>
+            <div class.tab-actions">
+              <button class="btn-danger btn-small" data-action="delete">Delete</button>
+            </div>
+          </div>`;
+      })
+      .join("");
+  },
+
+  async handleAdd(e) {
+    e.preventDefault();
+    const usernameInput = document.getElementById("twitterUsername");
+    const urlInput = document.getElementById("twitterUrl");
+    const newUsername = usernameInput.value.trim();
+    const newUrl = urlInput.value.trim();
+
+    if (!newUsername || !newUrl) return;
+
+    if (
+      this.accounts.some(
+        (acc) => acc.username.toLowerCase() === newUsername.toLowerCase()
+      )
+    ) {
+      showMessage("This username is already added.", "error");
+      return;
+    }
+
+    this.accounts.push({ username: newUsername, searchUrl: newUrl });
+    if (await this.saveAccountsToStorage()) {
+      showMessage("Account added successfully!", "success");
+      usernameInput.value = "";
+      urlInput.value = "";
+      this.render();
+    }
+  },
+
+  handleListClick(e) {
+    if (e.target.dataset.action === "delete") {
+      const username = e.target.closest(".tab-item").dataset.username;
+      if (!confirm(`Delete ${username}?`)) return;
+      this.accounts = this.accounts.filter((acc) => acc.username !== username);
+      this.saveAccountsToStorage().then(() => this.render());
+    }
+  },
+};
+

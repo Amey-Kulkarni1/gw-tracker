@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Productivity Suite - Options</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+
+<body>
+  <div class="container">
+    <h1>Productivity Suite</h1>
+    <div id="message"></div>
+
+    <div class="main-controls form-section">
+      <h2>Data Management</h2>
+      <p>
+        Import old backup files or export a new combined backup of all data.
+      </p>
+      <div class="button-group">
+        <button id="importData" class="btn-secondary">Import Data</button>
+        <button id="exportData" class="btn-primary">Export All Data</button>
+        <input type="file" id="importFile" accept="application/json" style="display: none" />
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-column" id="saveForLaterContainer">
+        <div id="sflAddForm" class="form-section" style="display: none">
+          <h2>Add/Edit Saved Item</h2>
+          <form id="sflSaveForm">
+            <div class="form-row">
+              <label for="sflUrl">URL:</label><input type="url" id="sflUrl" required />
+            </div>
+            <div class="form-row">
+              <label for="sflDate">Date:</label><input type="date" id="sflDate" required />
+            </div>
+            <div class="button-group">
+              <button type="submit" class="btn-primary">Save Item</button>
+              <button type="button" id="sflCancelAdd" class="btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="saved-tabs-section">
+          <div class="controls">
+            <div class="controls-header">
+              <h2>Saved Items</h2>
+            </div>
+            <div class="action-buttons">
+              <button id="sflDeleteSelected" class="btn-danger">
+                Delete Selected
+              </button>
+              <button id="sflOpenTodays" class="btn-secondary">
+                Open Today's
+              </button>
+              <button id="sflOpenTomorrows" class="btn-secondary">
+                Open Tomorrow's
+              </button>
+              <button id="sflAddNew" class="btn-primary">Add New</button>
+            </div>
+            <div class="sort-controls">
+              <label>Sort by:</label>
+              <select id="sflSortBy">
+                <option value="date">Date</option>
+                <option value="title">URL</option>
+                <option value="dateAdded">Date Added</option>
+              </select>
+              <select id="sflSortOrder">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="list-header-row">
+            <div class="item-selection" style="visibility: hidden;"></div> <!-- Spacer -->
+            <div class="select-all-container">
+              <input type="checkbox" id="sflSelectAllCheckbox" /><label for="sflSelectAllCheckbox">Select All</label>
+            </div>
+          </div>
+
+          <div id="sflTabsList"></div>
+          <div id="sflNoTabs" class="no-tabs" style="display: none">
+            No saved items yet.
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-column" id="twitterContainer">
+        <div class="form-section">
+          <h2>Add Twitter Account</h2>
+          <form id="twitterAddForm">
+            <div class="form-row">
+              <label for="twitterUsername">Username (e.g., TonyRewards):</label><input type="text" id="twitterUsername"
+                required />
+            </div>
+            <div class="form-row">
+              <label for="twitterUrl">Full Search URL:</label><input type="url" id="twitterUrl" required />
+            </div>
+            <div class="button-group">
+              <button type="submit" class="btn-primary">Add Account</button>
+            </div>
+          </form>
+        </div>
+        <div class="saved-tabs-section">
+          <h2>Saved Accounts</h2>
+          <div id="twitterAccountsList"></div>
+          <div id="twitterNoAccounts" class="no-tabs" style="display: none">
+            No accounts added yet.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="options.js"></script>
+</body>
+
+</html>
