@@ -318,15 +318,34 @@ const saveForLaterApp = {
     }
     noTabs.style.display = "none";
 
+    const comparePrizes = (a, b) => {
+      const hasA = a.prize != null && a.prize !== "";
+      const hasB = b.prize != null && b.prize !== "";
+      if (!hasA && !hasB) return 0;
+      if (hasA && !hasB) return -1;
+      if (!hasA && hasB) return 1;
+
+      const aIsText = typeof a.prize === "string";
+      const bIsText = typeof b.prize === "string";
+
+      if (aIsText && bIsText) {
+        return a.prize.localeCompare(b.prize);
+      }
+      if (aIsText && !bIsText) return -1;
+      if (!aIsText && bIsText) return 1;
+
+      const aPrize = typeof a.prize === "number" ? a.prize : 0;
+      const bPrize = typeof b.prize === "number" ? b.prize : 0;
+      return bPrize - aPrize;
+    };
+
     const sortedTabs = [...this.savedTabs].sort((a, b) => {
       // 1. Prioritize Empty Dates
       if (!a.date && b.date) return -1;
       if (a.date && !b.date) return 1;
       if (!a.date && !b.date) {
-        // Both empty dates: sort by prize (highest USD first; text prizes sort after numbers)
-        const aPrize = typeof a.prize === "number" ? a.prize : 0;
-        const bPrize = typeof b.prize === "number" ? b.prize : 0;
-        return bPrize - aPrize;
+        // Both empty dates: sort by prize (text prizes like gloves/knives/skins first, then dollar prizes)
+        return comparePrizes(a, b);
       }
 
       // 2. Normal Sorting
@@ -349,11 +368,9 @@ const saveForLaterApp = {
       else if (aVal > bVal) primaryCompare = sortOrder === "asc" ? 1 : -1;
       else primaryCompare = 0;
 
-      // If dates are equal, sort by prize (highest USD first)
+      // If dates are equal, sort by prize (text prizes first, then highest USD)
       if (primaryCompare === 0 && sortBy === "date") {
-        const aPrize = typeof a.prize === "number" ? a.prize : 0;
-        const bPrize = typeof b.prize === "number" ? b.prize : 0;
-        return bPrize - aPrize;
+        return comparePrizes(a, b);
       }
 
       return primaryCompare;
