@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // Initialize both feature modules
+  // Initialize save for later module
   saveForLaterApp.init();
-  twitterApp.init();
 
   // Initialize main data management listeners
   document
@@ -33,17 +32,12 @@ function showMessage(text, type) {
 async function handleExportAll() {
   try {
     const sflData = await chrome.storage.local.get(["savedTabs"]);
-    const twitterData = await chrome.storage.local.get(["twitterAccounts"]);
 
     const combinedData = {
       saveForLaterData: sflData.savedTabs || [],
-      twitterAccountsData: twitterData.twitterAccounts || [],
     };
 
-    if (
-      combinedData.saveForLaterData.length === 0 &&
-      combinedData.twitterAccountsData.length === 0
-    ) {
+    if (combinedData.saveForLaterData.length === 0) {
       showMessage("No data to export.", "error");
       return;
     }
@@ -59,7 +53,7 @@ async function handleExportAll() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showMessage("Combined data exported successfully!", "success");
+    showMessage("Data exported successfully!", "success");
   } catch (error) {
     showMessage(`Export failed: ${error.message}`, "error");
   }
@@ -74,34 +68,22 @@ function handleImport(event) {
     try {
       const data = JSON.parse(e.target.result);
       let sflImported = 0;
-      let twitterImported = 0;
 
-      // Case 1: Combined backup file
-      if (data.saveForLaterData || data.twitterAccountsData) {
-        if (data.saveForLaterData) {
-          await saveForLaterApp.importData(data.saveForLaterData);
-          sflImported = data.saveForLaterData.length;
-        }
-        if (data.twitterAccountsData) {
-          await twitterApp.importData(data.twitterAccountsData);
-          twitterImported = data.twitterAccountsData.length;
-        }
+      // Case 1: Backup file with saveForLaterData property
+      if (data.saveForLaterData) {
+        await saveForLaterApp.importData(data.saveForLaterData);
+        sflImported = data.saveForLaterData.length;
       }
       // Case 2: Old "Save for Later" backup (is an array of tabs)
       else if (Array.isArray(data) && data[0] && data[0].dateAdded) {
         await saveForLaterApp.importData(data);
         sflImported = data.length;
-      }
-      // Case 3: Old "Twitter" backup (is an array of accounts)
-      else if (Array.isArray(data) && data[0] && data[0].searchUrl) {
-        await twitterApp.importData(data);
-        twitterImported = data.length;
       } else {
         throw new Error("File format not recognized.");
       }
 
       showMessage(
-        `Import successful! Added ${sflImported} saved items and ${twitterImported} Twitter accounts.`,
+        `Import successful! Added ${sflImported} saved items.`,
         "success"
       );
     } catch (error) {
@@ -200,10 +182,10 @@ const saveForLaterApp = {
     const currentIdx = boxes.indexOf(e.target);
     if (currentIdx === -1) return;
     if (e.shiftKey && this.lastCheckboxIndex !== null) {
-      e.preventDefault();
       const start = Math.min(this.lastCheckboxIndex, currentIdx);
       const end = Math.max(this.lastCheckboxIndex, currentIdx);
-      for (let i = start; i <= end; i++) boxes[i].checked = true;
+      const isChecked = e.target.checked;
+      for (let i = start; i <= end; i++) boxes[i].checked = isChecked;
       this.updateSelectAllState();
     }
     this.lastCheckboxIndex = currentIdx;
@@ -529,122 +511,6 @@ const saveForLaterApp = {
     document.getElementById("sflAddForm").style.display = "none";
     document.getElementById("sflSaveForm").reset();
     this.editingId = null;
-  },
-};
-
-// =======================================================
-// FEATURE 2: TWITTER APP
-// =======================================================
-const twitterApp = {
-  accounts: [],
-
-  init() {
-    this.loadAccounts();
-    this.setupEventListeners();
-  },
-
-  setupEventListeners() {
-    document
-      .getElementById("twitterAddForm")
-      .addEventListener("submit", this.handleAdd.bind(this));
-    document
-      .getElementById("twitterAccountsList")
-      .addEventListener("click", this.handleListClick.bind(this));
-  },
-
-  async loadAccounts() {
-    const data = await chrome.storage.local.get({ twitterAccounts: [] });
-    this.accounts = data.twitterAccounts;
-    this.render();
-  },
-
-  async saveAccountsToStorage() {
-    try {
-      await chrome.storage.local.set({ twitterAccounts: this.accounts });
-      return true;
-    } catch (error) {
-      showMessage("Error saving accounts: " + error.message, "error");
-      return false;
-    }
-  },
-
-  async importData(data) {
-    const result = await chrome.storage.local.get(["twitterAccounts"]);
-    this.accounts = result.twitterAccounts || [];
-    const existingUsernames = new Set(this.accounts.map((acc) => acc.username));
-    const newItems = data.filter(
-      (item) => item.username && !existingUsernames.has(item.username)
-    );
-    this.accounts.push(...newItems);
-    await this.saveAccountsToStorage();
-    this.render();
-  },
-
-  render() {
-    const list = document.getElementById("twitterAccountsList");
-    const noAccounts = document.getElementById("twitterNoAccounts");
-    if (this.accounts.length === 0) {
-      list.innerHTML = "";
-      noAccounts.style.display = "block";
-      return;
-    }
-    noAccounts.style.display = "none";
-
-    list.innerHTML = this.accounts
-      .map((account) => {
-        const escapeHtml = (text) => {
-          const d = document.createElement("div");
-          d.textContent = text;
-          return d.innerHTML;
-        };
-        return `
-          <div class="tab-item" data-username="${escapeHtml(account.username)}">
-            <div class="tab-info">
-              <div class="tab-title">${escapeHtml(account.username)}</div>
-              <div class="tab-date">URL: ${escapeHtml(account.searchUrl)}</div>
-            </div>
-            <div class.tab-actions">
-              <button class="btn-danger btn-small" data-action="delete">Delete</button>
-            </div>
-          </div>`;
-      })
-      .join("");
-  },
-
-  async handleAdd(e) {
-    e.preventDefault();
-    const usernameInput = document.getElementById("twitterUsername");
-    const urlInput = document.getElementById("twitterUrl");
-    const newUsername = usernameInput.value.trim();
-    const newUrl = urlInput.value.trim();
-
-    if (!newUsername || !newUrl) return;
-
-    if (
-      this.accounts.some(
-        (acc) => acc.username.toLowerCase() === newUsername.toLowerCase()
-      )
-    ) {
-      showMessage("This username is already added.", "error");
-      return;
-    }
-
-    this.accounts.push({ username: newUsername, searchUrl: newUrl });
-    if (await this.saveAccountsToStorage()) {
-      showMessage("Account added successfully!", "success");
-      usernameInput.value = "";
-      urlInput.value = "";
-      this.render();
-    }
-  },
-
-  handleListClick(e) {
-    if (e.target.dataset.action === "delete") {
-      const username = e.target.closest(".tab-item").dataset.username;
-      if (!confirm(`Delete ${username}?`)) return;
-      this.accounts = this.accounts.filter((acc) => acc.username !== username);
-      this.saveAccountsToStorage().then(() => this.render());
-    }
   },
 };
 

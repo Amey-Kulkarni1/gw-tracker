@@ -1,28 +1,6 @@
 // --- Main setup on install/update ---
 chrome.runtime.onInstalled.addListener(() => {
-  // Set default Twitter accounts only on the very first install
-  chrome.storage.local.get("twitterAccounts", (data) => {
-    if (!data.twitterAccounts) {
-      const defaultAccounts = [
-        {
-          username: "TonyRewards",
-          searchUrl:
-            "https://x.com/search?q=from%3ATonyRewards%20Giveaway&src=typed_query&f=live",
-        },
-        {
-          username: "MonkeeyCS",
-          searchUrl:
-            "https://x.com/search?q=from%3AMonkeeyCS%20GIVEAWAY&src=typed_query&f=live",
-        },
-      ];
-      chrome.storage.local.set(
-        { twitterAccounts: defaultAccounts },
-        rebuildContextMenus
-      );
-    } else {
-      rebuildContextMenus();
-    }
-  });
+  rebuildContextMenus();
 });
 
 // --- Listen for a click on the extension's icon ---
@@ -32,9 +10,6 @@ chrome.action.onClicked.addListener((tab) => {
 
 // --- Rebuild menus and update icons if storage changes ---
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (changes.twitterAccounts) {
-    rebuildContextMenus();
-  }
   // If the list of saved tabs changes, update the icons on all open tabs
   if (changes.savedTabs) {
     updateAllTabs();
@@ -138,7 +113,7 @@ async function updateIconAndBadgeForTab(tab) {
 // =======================================================
 
 function rebuildContextMenus() {
-  chrome.contextMenus.removeAll(async () => {
+  chrome.contextMenus.removeAll(() => {
     // Single Context Menu Item
     chrome.contextMenus.create({
       id: "saveAuto",
@@ -146,7 +121,7 @@ function rebuildContextMenus() {
       contexts: ["page", "link"],
     });
 
-    // ... (rest of the function remains same for other unrelated menus like Custom Date)
+    // Separator and Custom Date
     chrome.contextMenus.create({
       id: "separator1",
       type: "separator",
@@ -157,23 +132,6 @@ function rebuildContextMenus() {
       title: "Custom Date...",
       contexts: ["page", "link"],
     });
-
-    // (Keep the existing Twitter account search loop here)
-    const data = await chrome.storage.local.get({ twitterAccounts: [] });
-    for (const account of data.twitterAccounts) {
-      chrome.contextMenus.remove(`search-${account.username}`, () => {
-        chrome.runtime.lastError;
-        chrome.contextMenus.create({
-          id: `search-${account.username}`,
-          title: `Search giveaways from ${account.username}`,
-          contexts: ["page"],
-          documentUrlPatterns: [
-            `*://x.com/${account.username}*`,
-            `*://twitter.com/${account.username}*`,
-          ],
-        });
-      });
-    }
   });
 }
 
@@ -199,17 +157,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       chrome.runtime.getURL("options.html") +
       `?action=add&url=${encodeURIComponent(url)}`;
     chrome.tabs.create({ url: optionsUrl });
-  }
-  // 3. Check Search
-  else if (info.menuItemId.startsWith("search-")) {
-    // ... existing search logic ...
-    const data = await chrome.storage.local.get({ twitterAccounts: [] });
-    const clickedAccount = data.twitterAccounts.find(
-      (account) => `search-${account.username}` === info.menuItemId
-    );
-    if (clickedAccount) {
-      chrome.tabs.update(tab.id, { url: clickedAccount.searchUrl });
-    }
   }
 });
 
@@ -334,4 +281,25 @@ chrome.webNavigation.onBeforeNavigate.addListener(
     }
   },
   { url: [{ hostEquals: "t.me" }] }
+);
+
+// =======================================================
+// FEATURE: STAKE.COM TO STAKE.AC REDIRECT
+// =======================================================
+chrome.webNavigation.onBeforeNavigate.addListener(
+  (details) => {
+    if (details.frameId === 0) {
+      const url = new URL(details.url);
+      if (url.hostname === "stake.com" || url.hostname.endsWith(".stake.com")) {
+        url.hostname = url.hostname.replace(/stake\.com$/, "stake.ac");
+        chrome.tabs.update(details.tabId, { url: url.toString() });
+      }
+    }
+  },
+  {
+    url: [
+      { hostSuffix: "stake.com" },
+      { hostEquals: "stake.com" }
+    ]
+  }
 );
