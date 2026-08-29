@@ -260,9 +260,13 @@ async function saveItemDirectly(url, dateString, prize = null) {
 // FEATURE: INSTAGRAM REEL TO POST CONVERTER
 // =======================================================
 chrome.webNavigation.onBeforeNavigate.addListener(
-  (details) => {
+  async (details) => {
     // Only redirect if it's the main frame (not an iframe)
     if (details.frameId === 0) {
+      const data = await chrome.storage.local.get({
+        redirectSettings: { instagram: true, telegram: true, stake: true },
+      });
+      if (data.redirectSettings.instagram === false) return;
       const newUrl = details.url.replace("/reel/", "/p/");
       chrome.tabs.update(details.tabId, { url: newUrl });
     }
@@ -278,8 +282,12 @@ chrome.webNavigation.onBeforeNavigate.addListener(
 // OTHER FEATURES (Unchanged)
 // =======================================================
 chrome.webNavigation.onBeforeNavigate.addListener(
-  (details) => {
+  async (details) => {
     if (details.frameId === 0) {
+      const data = await chrome.storage.local.get({
+        redirectSettings: { instagram: true, telegram: true, stake: true },
+      });
+      if (data.redirectSettings.telegram === false) return;
       const url = new URL(details.url);
       if (url.hostname === "t.me") {
         const newUrl = `https://telegram.me${url.pathname}`;
@@ -294,8 +302,12 @@ chrome.webNavigation.onBeforeNavigate.addListener(
 // FEATURE: STAKE.COM TO STAKE.AC REDIRECT
 // =======================================================
 chrome.webNavigation.onBeforeNavigate.addListener(
-  (details) => {
+  async (details) => {
     if (details.frameId === 0) {
+      const data = await chrome.storage.local.get({
+        redirectSettings: { instagram: true, telegram: true, stake: true },
+      });
+      if (data.redirectSettings.stake === false) return;
       const url = new URL(details.url);
       if (url.hostname === "stake.com" || url.hostname.endsWith(".stake.com")) {
         url.hostname = url.hostname.replace(/stake\.com$/, "stake.ac");

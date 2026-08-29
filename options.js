@@ -1,8 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
   // Initialize save for later module
   saveForLaterApp.init();
+  settingsApp.init();
 
-  // Initialize main data management listeners
+  // Initialize main data management listeners (inside settings modal)
   document
     .getElementById("exportData")
     .addEventListener("click", handleExportAll);
@@ -15,6 +16,66 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("importFile")
     .addEventListener("change", handleImport);
 });
+
+// =======================================================
+// SETTINGS APP (Modal & Redirection Toggles)
+// =======================================================
+const settingsApp = {
+  async init() {
+    this.setupEventListeners();
+    await this.loadSettings();
+  },
+
+  setupEventListeners() {
+    const modal = document.getElementById("settingsModal");
+    const openBtn = document.getElementById("openSettingsBtn");
+    const closeBtn = document.getElementById("closeSettingsBtn");
+
+    openBtn.addEventListener("click", () => {
+      this.loadSettings();
+      modal.style.display = "flex";
+    });
+
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.style.display = "none";
+      }
+    });
+
+    document.getElementById("toggleInstagram").addEventListener("change", (e) => {
+      this.updateRedirectSetting("instagram", e.target.checked);
+    });
+    document.getElementById("toggleTelegram").addEventListener("change", (e) => {
+      this.updateRedirectSetting("telegram", e.target.checked);
+    });
+    document.getElementById("toggleStake").addEventListener("change", (e) => {
+      this.updateRedirectSetting("stake", e.target.checked);
+    });
+  },
+
+  async loadSettings() {
+    const data = await chrome.storage.local.get({
+      redirectSettings: { instagram: true, telegram: true, stake: true },
+    });
+    const s = data.redirectSettings || {};
+    document.getElementById("toggleInstagram").checked = s.instagram !== false;
+    document.getElementById("toggleTelegram").checked = s.telegram !== false;
+    document.getElementById("toggleStake").checked = s.stake !== false;
+  },
+
+  async updateRedirectSetting(key, enabled) {
+    const data = await chrome.storage.local.get({
+      redirectSettings: { instagram: true, telegram: true, stake: true },
+    });
+    const s = data.redirectSettings || { instagram: true, telegram: true, stake: true };
+    s[key] = enabled;
+    await chrome.storage.local.set({ redirectSettings: s });
+  },
+};
 
 // =======================================================
 // UNIVERSAL MESSAGE & DATA HANDLERS
