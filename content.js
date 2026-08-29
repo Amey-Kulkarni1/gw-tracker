@@ -254,6 +254,23 @@ function extractPrizeFromText(text) {
 
   if (/\bknife\b/i.test(text)) return "knife";
 
+  const specificGloves = [
+    { regex: /\bhand\s*wraps?\b/i, name: "hand wraps gloves" },
+    { regex: /\bbroken\s+fang\b/i, name: "broken fang gloves" },
+    { regex: /\bsport(?:s)?\b/i, name: "sport gloves" },
+    { regex: /\bspecialist\b/i, name: "specialist gloves" },
+    { regex: /\bmoto\b/i, name: "moto gloves" },
+    { regex: /\bdriver\b/i, name: "driver gloves" },
+    { regex: /\bbloodhound\b/i, name: "bloodhound gloves" },
+    { regex: /\bhydra\b/i, name: "hydra gloves" },
+  ];
+
+  for (const g of specificGloves) {
+    if (g.regex.test(text)) {
+      return g.name;
+    }
+  }
+
   if (/\bgloves?\b/i.test(text)) return "gloves";
 
   const weaponModels = [
