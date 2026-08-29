@@ -226,7 +226,14 @@ async function saveItemDirectly(url, dateString, prize = null) {
   try {
     const data = await chrome.storage.local.get(["savedTabs"]);
     const savedTabs = data.savedTabs || [];
-    if (savedTabs.some((tab) => tab.url === url && tab.date === dateString)) {
+    const existingIndex = savedTabs.findIndex(
+      (tab) => tab.url === url && tab.date === dateString
+    );
+    if (existingIndex !== -1) {
+      if (prize != null && prize !== "") {
+        savedTabs[existingIndex].prize = prize;
+        await chrome.storage.local.set({ savedTabs });
+      }
       return;
     }
     const newItem = {

@@ -193,6 +193,12 @@ function extractDaysFromText(text) {
   const weekMatch = text.match(/(\d+)\s*weeks?/);
   if (weekMatch) return { type: 'relative', value: parseInt(weekMatch[1]) * 7 };
 
+  // Months
+  if (/\b(?:a|one)\s+months?\b/i.test(text)) return { type: 'relative', value: 30 };
+  const monthMatch = text.match(/(\d+)\s*months?/);
+  if (monthMatch) return { type: 'relative', value: parseInt(monthMatch[1]) * 30 };
+  if (/\bmonths?\b/i.test(text)) return { type: 'relative', value: 30 };
+
   return null;
 }
 
@@ -217,8 +223,81 @@ function extractPrizeFromText(text) {
     }
   }
 
+  const specificKnives = [
+    { regex: /\bm9\s+bayonet\b/i, name: "m9 bayonet knife" },
+    { regex: /\bshadow\s+daggers?\b/i, name: "shadow daggers knife" },
+    { regex: /\bbowie\b/i, name: "bowie knife" },
+    { regex: /\bbutterfly\b/i, name: "butterfly knife" },
+    { regex: /\bclassic\b/i, name: "classic knife" },
+    { regex: /\bfalchion\b/i, name: "falchion knife" },
+    { regex: /\bflip\b/i, name: "flip knife" },
+    { regex: /\bgut\b/i, name: "gut knife" },
+    { regex: /\bhuntsman\b/i, name: "huntsman knife" },
+    { regex: /\bkarambit\b/i, name: "karambit knife" },
+    { regex: /\bkukri\b/i, name: "kukri knife" },
+    { regex: /\bbayonet\b/i, name: "bayonet knife" },
+    { regex: /\bnavaja\b/i, name: "navaja knife" },
+    { regex: /\bnomad\b/i, name: "nomad knife" },
+    { regex: /\bparacord\b/i, name: "paracord knife" },
+    { regex: /\bskeleton\b/i, name: "skeleton knife" },
+    { regex: /\bstiletto\b/i, name: "stiletto knife" },
+    { regex: /\bsurvival\b/i, name: "survival knife" },
+    { regex: /\btalon\b/i, name: "talon knife" },
+    { regex: /\bursus\b/i, name: "ursus knife" },
+  ];
+
+  for (const k of specificKnives) {
+    if (k.regex.test(text)) {
+      return k.name;
+    }
+  }
+
   if (/\bknife\b/i.test(text)) return "knife";
+
   if (/\bgloves?\b/i.test(text)) return "gloves";
+
+  const weaponModels = [
+    { regex: /\bak[- ]?47\b/i, name: "AK-47" },
+    { regex: /\bm4a1[- ]?s\b/i, name: "M4A1-S" },
+    { regex: /\bm4a4\b/i, name: "M4A4" },
+    { regex: /\bm4a1\b/i, name: "M4A1" },
+    { regex: /\bawp\b/i, name: "AWP" },
+    { regex: /\bdesert\s+eagle\b/i, name: "Desert Eagle" },
+    { regex: /\bdeagle\b/i, name: "Deagle" },
+    { regex: /\busp[- ]?s\b/i, name: "USP-S" },
+    { regex: /\busp\b/i, name: "USP" },
+    { regex: /\bglock(?:[- ]?18)?\b/i, name: "Glock" },
+    { regex: /\bgalil(?:[- ]?ar)?\b/i, name: "Galil" },
+    { regex: /\bfamas\b/i, name: "FAMAS" },
+    { regex: /\bmp9\b/i, name: "MP9" },
+    { regex: /\bmac[- ]?10\b/i, name: "MAC-10" },
+    { regex: /\bp250\b/i, name: "P250" },
+    { regex: /\bfive[- ]?seven\b/i, name: "Five-SeveN" },
+    { regex: /\bcz75(?:[- ]?auto)?\b/i, name: "CZ75-Auto" },
+    { regex: /\btec[- ]?9\b/i, name: "Tec-9" },
+    { regex: /\bssg(?:[- ]?08)?\b/i, name: "SSG 08" },
+    { regex: /\bscout\b/i, name: "Scout" },
+    { regex: /\bsg[- ]?553\b/i, name: "SG 553" },
+    { regex: /\baug\b/i, name: "AUG" },
+    { regex: /\bmp7\b/i, name: "MP7" },
+    { regex: /\bp90\b/i, name: "P90" },
+    { regex: /\bump(?:[- ]?45)?\b/i, name: "UMP-45" },
+    { regex: /\b(?:pp[- ]?)?bizon\b/i, name: "PP-Bizon" },
+    { regex: /\bnova\b/i, name: "Nova" },
+    { regex: /\bxm1014\b/i, name: "XM1014" },
+    { regex: /\bmag[- ]?7\b/i, name: "MAG-7" },
+    { regex: /\bsawed[- ]?off\b/i, name: "Sawed-Off" },
+    { regex: /\bm249\b/i, name: "M249" },
+    { regex: /\bnegev\b/i, name: "Negev" },
+    { regex: /\bg3sg1\b/i, name: "G3SG1" },
+    { regex: /\bscar[- ]?20\b/i, name: "SCAR-20" },
+  ];
+
+  for (const weapon of weaponModels) {
+    if (weapon.regex.test(text)) {
+      return weapon.name;
+    }
+  }
 
   const cs2SkinHints = [
     /\bcs2\b/i,
@@ -228,15 +307,6 @@ function extractPrizeFromText(text) {
     /\bfield[\s-]?tested\b/i,
     /\bwell\s+worn\b/i,
     /\bbattle\s+scarred\b/i,
-    /\bm4a4\b/i,
-    /\bm4a1\b/i,
-    /\bgalil\b/i,
-    /\bak[- ]?47\b/i,
-    /\busp[- ]?s?\b/i,
-    /\bglock\b/i,
-    /\bdeagle\b/i,
-    /\bdesert\s+eagle\b/i,
-    /\bawp\b/i,
     /\bfn\b/i,
     /\bmw\b/i,
     /\bft\b/i,
@@ -275,9 +345,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     // For Twitter/X pages, extract date and prize from tweet text
-    const tweetTextEl = document.querySelector('[data-testid="tweetText"]');
+    let tweetTextEl = null;
+    const statusMatch = window.location.pathname.match(/\/status\/(\d+)/);
+    if (statusMatch && statusMatch[1]) {
+      const link = document.querySelector(`a[href*="/status/${statusMatch[1]}"]`);
+      if (link) {
+        const article = link.closest('article');
+        if (article) {
+          tweetTextEl = article.querySelector('[data-testid="tweetText"]');
+        }
+      }
+    }
+    if (!tweetTextEl) {
+      tweetTextEl = document.querySelector('[data-testid="tweetText"]');
+    }
+
     if (tweetTextEl) {
-      const text = tweetTextEl.innerText;
+      const text = tweetTextEl.innerText || tweetTextEl.textContent || "";
       console.log("[Content] Tweet text:", text);
       // Only extract date if we don't have one from Gleam
       if (!result) {
