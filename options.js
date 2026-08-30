@@ -22,8 +22,37 @@ document.addEventListener("DOMContentLoaded", () => {
 // =======================================================
 const settingsApp = {
   async init() {
+    this.populateTimezones();
     this.setupEventListeners();
     await this.loadSettings();
+  },
+
+  populateTimezones() {
+    const tzSelect = document.getElementById("settingTimezone");
+    if (!tzSelect) return;
+
+    if (typeof Intl !== "undefined" && typeof Intl.supportedValuesOf === "function") {
+      try {
+        const allZones = Intl.supportedValuesOf("timeZone");
+        const existingValues = new Set(Array.from(tzSelect.options).map((o) => o.value));
+
+        const optGroup = document.createElement("optgroup");
+        optGroup.label = "All Time Zones";
+
+        allZones.forEach((tz) => {
+          if (!existingValues.has(tz)) {
+            const opt = document.createElement("option");
+            opt.value = tz;
+            opt.textContent = tz;
+            optGroup.appendChild(opt);
+          }
+        });
+
+        if (optGroup.children.length > 0) {
+          tzSelect.appendChild(optGroup);
+        }
+      } catch (e) {}
+    }
   },
 
   setupEventListeners() {
@@ -55,16 +84,29 @@ const settingsApp = {
     document.getElementById("toggleStake").addEventListener("change", (e) => {
       this.updateRedirectSetting("stake", e.target.checked);
     });
+
+    const tzSelect = document.getElementById("settingTimezone");
+    if (tzSelect) {
+      tzSelect.addEventListener("change", async (e) => {
+        await chrome.storage.local.set({ timezone: e.target.value });
+      });
+    }
   },
 
   async loadSettings() {
     const data = await chrome.storage.local.get({
       redirectSettings: { instagram: true, telegram: true, stake: true },
+      timezone: "UTC",
     });
     const s = data.redirectSettings || {};
     document.getElementById("toggleInstagram").checked = s.instagram !== false;
     document.getElementById("toggleTelegram").checked = s.telegram !== false;
     document.getElementById("toggleStake").checked = s.stake !== false;
+
+    const tzSelect = document.getElementById("settingTimezone");
+    if (tzSelect) {
+      tzSelect.value = data.timezone || "UTC";
+    }
   },
 
   async updateRedirectSetting(key, enabled) {

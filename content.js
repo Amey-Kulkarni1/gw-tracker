@@ -11,6 +11,40 @@ function getGleamSignature(urlString) {
   return null;
 }
 
+// --- Helper: Date & Time formatting with timezone support ---
+function formatDateInTimeZone(date, timeZone) {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone || 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const year = parts.find((p) => p.type === 'year').value;
+    const month = parts.find((p) => p.type === 'month').value;
+    const day = parts.find((p) => p.type === 'day').value;
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+}
+
+function formatDateTimeInTimeZone(date, timeZone) {
+  try {
+    return date.toLocaleString('en-US', {
+      timeZone: timeZone || 'UTC',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch (e) {
+    return date.toUTCString();
+  }
+}
+
 // --- Gleam Helper Logic ---
 function initGleamHelper() {
   const checkInterval = setInterval(() => {
@@ -26,13 +60,13 @@ async function createOverlay(element) {
   const epoch = parseInt(element.getAttribute("data-ends"));
   if (isNaN(epoch)) return;
 
+  const data = await chrome.storage.local.get({ timezone: "UTC", savedTabs: [] });
+  const timeZone = data.timezone || "UTC";
+  const savedTabs = data.savedTabs || [];
+
   const endDate = new Date(epoch * 1000);
-  const istString = endDate.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short'
-  });
-  const saveDateString = endDate.getFullYear() + '-' +
-    String(endDate.getMonth() + 1).padStart(2, '0') + '-' +
-    String(endDate.getDate()).padStart(2, '0');
+  const timeZoneString = formatDateTimeInTimeZone(endDate, timeZone);
+  const saveDateString = formatDateInTimeZone(endDate, timeZone);
 
   const container = document.createElement('div');
   container.style.cssText = `
@@ -43,7 +77,7 @@ async function createOverlay(element) {
   `;
 
   const text = document.createElement('div');
-  text.innerText = `Ends (IST): ${istString}`;
+  text.innerText = `Ends (${timeZone}): ${timeZoneString}`;
   text.style.marginBottom = '10px'; text.style.fontSize = '14px';
 
   const btn = document.createElement('button');
@@ -53,8 +87,6 @@ async function createOverlay(element) {
   `;
 
   const currentSignature = getGleamSignature(window.location.href);
-  const data = await chrome.storage.local.get(["savedTabs"]);
-  const savedTabs = data.savedTabs || [];
 
   const isAlreadySaved = savedTabs.some(tab => {
     const savedSignature = getGleamSignature(tab.url);
@@ -335,16 +367,16 @@ function extractPrizeFromText(text) {
   return null;
 }
 
-function extractGleamDate() {
+function extractGleamDate(timeZone = 'UTC') {
   const endsElement = document.querySelector('[data-ends]');
   if (endsElement) {
     const endsTimestamp = endsElement.getAttribute('data-ends');
     if (endsTimestamp) {
-      const date = new Date(parseInt(endsTimestamp) * 1000);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return { type: 'absolute', value: `${year}-${month}-${day}` };
+      const epoch = parseInt(endsTimestamp);
+      if (!isNaN(epoch)) {
+        const date = new Date(epoch * 1000);
+        return { type: 'absolute', value: formatDateInTimeZone(date, timeZone) };
+      }
     }
   }
   return null;
@@ -353,44 +385,47 @@ function extractGleamDate() {
 // Listen for the background script asking for the date
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getDetectedDays") {
-    let result = null;
-    let prize = null;
+    (async () => {
+      let result = null;
+      let prize = null;
 
-    // Check for Gleam.io first
-    if (window.location.hostname.includes("gleam.io")) {
-      result = extractGleamDate();
-    }
+      // Check for Gleam.io first
+      if (window.location.hostname.includes("gleam.io")) {
+        const data = await chrome.storage.local.get({ timezone: "UTC" });
+        result = extractGleamDate(data.timezone || "UTC");
+      }
 
-    // For Twitter/X pages, extract date and prize from tweet text
-    let tweetTextEl = null;
-    const statusMatch = window.location.pathname.match(/\/status\/(\d+)/);
-    if (statusMatch && statusMatch[1]) {
-      const link = document.querySelector(`a[href*="/status/${statusMatch[1]}"]`);
-      if (link) {
-        const article = link.closest('article');
-        if (article) {
-          tweetTextEl = article.querySelector('[data-testid="tweetText"]');
+      // For Twitter/X pages, extract date and prize from tweet text
+      let tweetTextEl = null;
+      const statusMatch = window.location.pathname.match(/\/status\/(\d+)/);
+      if (statusMatch && statusMatch[1]) {
+        const link = document.querySelector(`a[href*="/status/${statusMatch[1]}"]`);
+        if (link) {
+          const article = link.closest('article');
+          if (article) {
+            tweetTextEl = article.querySelector('[data-testid="tweetText"]');
+          }
         }
       }
-    }
-    if (!tweetTextEl) {
-      tweetTextEl = document.querySelector('[data-testid="tweetText"]');
-    }
-
-    if (tweetTextEl) {
-      const text = tweetTextEl.innerText || tweetTextEl.textContent || "";
-      console.log("[Content] Tweet text:", text);
-      // Only extract date if we don't have one from Gleam
-      if (!result) {
-        result = extractDaysFromText(text);
+      if (!tweetTextEl) {
+        tweetTextEl = document.querySelector('[data-testid="tweetText"]');
       }
-      // Always try to extract prize from tweet text
-      prize = extractPrizeFromText(text);
-      console.log("[Content] Extracted prize:", prize);
-    }
 
-    console.log("[Content] Sending response:", { result, prize });
-    sendResponse({ result: result, prize: prize });
+      if (tweetTextEl) {
+        const text = tweetTextEl.innerText || tweetTextEl.textContent || "";
+        console.log("[Content] Tweet text:", text);
+        // Only extract date if we don't have one from Gleam
+        if (!result) {
+          result = extractDaysFromText(text);
+        }
+        // Always try to extract prize from tweet text
+        prize = extractPrizeFromText(text);
+        console.log("[Content] Extracted prize:", prize);
+      }
+
+      console.log("[Content] Sending response:", { result, prize });
+      sendResponse({ result: result, prize: prize });
+    })();
     return true;
   }
   else if (request.action === "getPageDate") {
