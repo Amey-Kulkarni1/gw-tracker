@@ -26,6 +26,7 @@
     {
       "matches": [
         "*://*.gleam.io/*",
+        "*://*.sweepwidget.com/*",
         "*://x.com/*",
         "*://twitter.com/*"
       ],

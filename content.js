@@ -11,6 +11,19 @@ function getGleamSignature(urlString) {
   return null;
 }
 
+// --- Helper: Extracts "sweepwidget.com/PATH" from a full URL ---
+function getSweepwidgetSignature(urlString) {
+  try {
+    const url = new URL(urlString);
+    if (!url.hostname.includes('sweepwidget.com')) return null;
+    const pathParts = url.pathname.split('/').filter(p => p.length > 0);
+    if (pathParts.length > 0) {
+      return `sweepwidget.com/${pathParts.join('/')}`;
+    }
+  } catch (e) { }
+  return null;
+}
+
 // --- Helper: Date & Time formatting with timezone support ---
 function formatDateInTimeZone(date, timeZone) {
   try {
@@ -134,9 +147,125 @@ async function saveGleamUrl(url, dateStr, btn) {
     return;
   }
 
+  const rawTitle = document.title || url;
+  const title = rawTitle.toLowerCase().includes('gleam') ? rawTitle : `${rawTitle} Gleam`;
+
   savedTabs.push({
-    id: Date.now().toString(), title: document.title || url,
-    url: url, date: dateStr, dateAdded: new Date().toISOString(),
+    id: Date.now().toString(),
+    title: title,
+    url: url,
+    date: dateStr,
+    dateAdded: new Date().toISOString(),
+  });
+  await chrome.storage.local.set({ savedTabs });
+  updateButtonState(btn, true);
+}
+
+// --- SweepWidget Helper Logic ---
+function parseSweepwidgetCountdown() {
+  const clockdiv = document.getElementById('clockdiv') || document.querySelector('#clockdiv, .clockdiv');
+  if (!clockdiv) return null;
+
+  const daysEl = clockdiv.querySelector('.days');
+  const hoursEl = clockdiv.querySelector('.hours');
+  const minutesEl = clockdiv.querySelector('.minutes');
+  const secondsEl = clockdiv.querySelector('.seconds');
+
+  if (!daysEl && !hoursEl && !minutesEl && !secondsEl) return null;
+
+  const days = daysEl ? parseInt(daysEl.innerText.trim(), 10) || 0 : 0;
+  const hours = hoursEl ? parseInt(hoursEl.innerText.trim(), 10) || 0 : 0;
+  const minutes = minutesEl ? parseInt(minutesEl.innerText.trim(), 10) || 0 : 0;
+  const seconds = secondsEl ? parseInt(secondsEl.innerText.trim(), 10) || 0 : 0;
+
+  const totalSeconds = (days * 86400) + (hours * 3600) + (minutes * 60) + seconds;
+  if (totalSeconds <= 0) return null;
+
+  return new Date(Date.now() + totalSeconds * 1000);
+}
+
+function initSweepwidgetHelper() {
+  const checkInterval = setInterval(() => {
+    const clockdiv = document.getElementById('clockdiv') || document.querySelector('#clockdiv, .clockdiv');
+    if (clockdiv) {
+      clearInterval(checkInterval);
+      createSweepwidgetOverlay();
+    }
+  }, 1000);
+}
+
+async function createSweepwidgetOverlay() {
+  const endDate = parseSweepwidgetCountdown();
+  if (!endDate) return;
+
+  const data = await chrome.storage.local.get({ timezone: "UTC", savedTabs: [] });
+  const timeZone = data.timezone || "UTC";
+  const savedTabs = data.savedTabs || [];
+
+  const timeZoneString = formatDateTimeInTimeZone(endDate, timeZone);
+  const saveDateString = formatDateInTimeZone(endDate, timeZone);
+
+  const container = document.createElement('div');
+  container.style.cssText = `
+    position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+    background: #1e1e1e; border: 1px solid #4a3aff; border-radius: 8px;
+    padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    font-family: -apple-system, sans-serif; color: white; text-align: center;
+  `;
+
+  const text = document.createElement('div');
+  text.innerText = `Ends (${timeZone}): ${timeZoneString}`;
+  text.style.marginBottom = '10px'; text.style.fontSize = '14px';
+
+  const btn = document.createElement('button');
+  btn.style.cssText = `
+    background: #4a3aff; color: white; border: none; padding: 8px 16px;
+    border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
+  `;
+
+  const currentSignature = getSweepwidgetSignature(window.location.href);
+
+  const isAlreadySaved = savedTabs.some(tab => {
+    const savedSignature = getSweepwidgetSignature(tab.url);
+    return currentSignature && savedSignature && currentSignature === savedSignature;
+  });
+
+  if (isAlreadySaved) {
+    updateButtonState(btn, true);
+  } else {
+    updateButtonState(btn, false);
+    btn.onclick = () => saveSweepwidgetUrl(window.location.href, saveDateString, btn);
+  }
+
+  container.appendChild(text);
+  container.appendChild(btn);
+  document.body.appendChild(container);
+}
+
+async function saveSweepwidgetUrl(url, dateStr, btn) {
+  const data = await chrome.storage.local.get(["savedTabs"]);
+  const savedTabs = data.savedTabs || [];
+  const currentSignature = getSweepwidgetSignature(url);
+
+  const isDuplicate = savedTabs.some(tab => {
+    const savedSignature = getSweepwidgetSignature(tab.url);
+    return currentSignature && savedSignature && currentSignature === savedSignature;
+  });
+
+  if (isDuplicate) {
+    updateButtonState(btn, true);
+    return;
+  }
+
+  const rawTitle = document.title || url;
+  const title = rawTitle.toLowerCase().includes('sweepwidget') ? rawTitle : `${rawTitle} SweepWidget`;
+
+  savedTabs.push({
+    id: Date.now().toString(),
+    title: title,
+    url: url,
+    date: dateStr,
+    dateAdded: new Date().toISOString(),
   });
   await chrome.storage.local.set({ savedTabs });
   updateButtonState(btn, true);
@@ -382,6 +511,14 @@ function extractGleamDate(timeZone = 'UTC') {
   return null;
 }
 
+function extractSweepwidgetDate(timeZone = 'UTC') {
+  const endDate = parseSweepwidgetCountdown();
+  if (endDate) {
+    return { type: 'absolute', value: formatDateInTimeZone(endDate, timeZone) };
+  }
+  return null;
+}
+
 // Listen for the background script asking for the date
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getDetectedDays") {
@@ -389,10 +526,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       let result = null;
       let prize = null;
 
-      // Check for Gleam.io first
+      // Check for Gleam.io or SweepWidget first
       if (window.location.hostname.includes("gleam.io")) {
         const data = await chrome.storage.local.get({ timezone: "UTC" });
         result = extractGleamDate(data.timezone || "UTC");
+      } else if (window.location.hostname.includes("sweepwidget.com")) {
+        const data = await chrome.storage.local.get({ timezone: "UTC" });
+        result = extractSweepwidgetDate(data.timezone || "UTC");
       }
 
       // For Twitter/X pages, extract date and prize from tweet text
@@ -414,7 +554,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (tweetTextEl) {
         const text = tweetTextEl.innerText || tweetTextEl.textContent || "";
         console.log("[Content] Tweet text:", text);
-        // Only extract date if we don't have one from Gleam
+        // Only extract date if we don't have one from Gleam or SweepWidget
         if (!result) {
           result = extractDaysFromText(text);
         }
@@ -464,4 +604,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 if (window.location.hostname.includes('gleam.io')) {
   initGleamHelper();
+} else if (window.location.hostname.includes('sweepwidget.com')) {
+  initSweepwidgetHelper();
 }

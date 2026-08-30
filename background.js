@@ -166,7 +166,7 @@ async function processAutoSave(tab, url) {
   let prize = null;
 
   // Try to get detected days and prize from content script
-  if (tab.url.includes("x.com") || tab.url.includes("twitter.com") || tab.url.includes("gleam.io")) {
+  if (tab.url.includes("x.com") || tab.url.includes("twitter.com") || tab.url.includes("gleam.io") || tab.url.includes("sweepwidget.com")) {
     try {
       const response = await chrome.tabs.sendMessage(tab.id, { action: "getDetectedDays" });
       console.log("[Background] Response from content script:", response);
@@ -217,12 +217,19 @@ async function processAutoSave(tab, url) {
     }
   }
 
-  saveItemDirectly(url, dateString, prize);
+  let title = tab.title || url;
+  if (url.includes("gleam.io") && !title.toLowerCase().includes("gleam")) {
+    title = `${title} Gleam`;
+  } else if (url.includes("sweepwidget.com") && !title.toLowerCase().includes("sweepwidget")) {
+    title = `${title} SweepWidget`;
+  }
+
+  saveItemDirectly(url, dateString, prize, title);
 }
 
 
 
-async function saveItemDirectly(url, dateString, prize = null) {
+async function saveItemDirectly(url, dateString, prize = null, title = null) {
   try {
     const data = await chrome.storage.local.get(["savedTabs"]);
     const savedTabs = data.savedTabs || [];
@@ -238,7 +245,7 @@ async function saveItemDirectly(url, dateString, prize = null) {
     }
     const newItem = {
       id: Date.now().toString(),
-      title: url,
+      title: title || url,
       url,
       date: dateString,
       dateAdded: new Date().toISOString(),
