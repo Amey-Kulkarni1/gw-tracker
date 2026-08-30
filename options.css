@@ -290,6 +290,24 @@ button {
   background: #3a3a10;
 }
 
+.tab-date-picker.date-today {
+  border-color: #ea4335;
+  background: #4a1818;
+  color: #ffcdd2;
+}
+
+.tab-date-picker.date-tomorrow {
+  border-color: #fbbc04;
+  background: #42380d;
+  color: #fff9c4;
+}
+
+.tab-date-picker.date-future {
+  border-color: #34a853;
+  background: #14381b;
+  color: #c8e6c9;
+}
+
 .message {
   padding: 12px;
   border-radius: 4px;

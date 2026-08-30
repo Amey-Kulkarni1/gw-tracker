@@ -420,15 +420,26 @@ const saveForLaterApp = {
 
     tabsList.innerHTML = sortedTabs
       .map((tab) => {
-        const isToday = (dateStr) => {
-          if (!dateStr) return false;
-          const date = new Date(dateStr + "T00:00:00");
+        const getDateHighlightClass = (dateStr) => {
+          if (!dateStr) return "";
+          const parts = dateStr.split("-").map(Number);
+          if (parts.length !== 3) return "";
+          const itemDate = new Date(parts[0], parts[1] - 1, parts[2]);
+          itemDate.setHours(0, 0, 0, 0);
+
           const today = new Date();
-          return (
-            date.getFullYear() === today.getFullYear() &&
-            date.getMonth() === today.getMonth() &&
-            date.getDate() === today.getDate()
-          );
+          today.setHours(0, 0, 0, 0);
+
+          const diffTime = itemDate.getTime() - today.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays <= 0) {
+            return "date-today";
+          } else if (diffDays === 1) {
+            return "date-tomorrow";
+          } else {
+            return "date-future";
+          }
         };
 
         const escapeHtml = (text) => {
@@ -439,7 +450,7 @@ const saveForLaterApp = {
 
         const dateValue = tab.date ? tab.date : "";
         const emptyClass = !tab.date ? "empty-date" : "";
-        const todayClass = isToday(tab.date) ? 'style="border-color: #4285f4; background: #1e3a5f;"' : "";
+        const dateHighlightClass = getDateHighlightClass(tab.date);
 
         const prizeHtml =
           tab.prize != null && tab.prize !== ""
@@ -458,7 +469,7 @@ const saveForLaterApp = {
               ${prizeHtml}
             </div>
             <div class="tab-actions">
-              <input type="date" class="tab-date-picker ${emptyClass}" value="${dateValue}" data-id="${tab.id}" ${todayClass}>
+              <input type="date" class="tab-date-picker ${emptyClass} ${dateHighlightClass}" value="${dateValue}" data-id="${tab.id}">
               <button class="btn-danger btn-small" data-action="delete">Delete</button>
             </div>
           </div>`;
@@ -543,8 +554,24 @@ const saveForLaterApp = {
         // unless the user refreshes or changes sort.
         // But we SHOULD update valid/invalid styling
         if (newDate) {
-          e.target.classList.remove("empty-date");
+          e.target.classList.remove("empty-date", "date-today", "date-tomorrow", "date-future");
+          const parts = newDate.split("-").map(Number);
+          if (parts.length === 3) {
+            const itemDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            itemDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const diffDays = Math.round((itemDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays <= 0) {
+              e.target.classList.add("date-today");
+            } else if (diffDays === 1) {
+              e.target.classList.add("date-tomorrow");
+            } else {
+              e.target.classList.add("date-future");
+            }
+          }
         } else {
+          e.target.classList.remove("date-today", "date-tomorrow", "date-future");
           e.target.classList.add("empty-date");
         }
       }, 500);
