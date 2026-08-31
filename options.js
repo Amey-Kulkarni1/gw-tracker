@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =======================================================
-// SETTINGS APP (Modal & Redirection Toggles)
+// SETTINGS APP (Modal & Timezone Settings)
 // =======================================================
 const settingsApp = {
   async init() {
@@ -75,16 +75,6 @@ const settingsApp = {
       }
     });
 
-    document.getElementById("toggleInstagram").addEventListener("change", (e) => {
-      this.updateRedirectSetting("instagram", e.target.checked);
-    });
-    document.getElementById("toggleTelegram").addEventListener("change", (e) => {
-      this.updateRedirectSetting("telegram", e.target.checked);
-    });
-    document.getElementById("toggleStake").addEventListener("change", (e) => {
-      this.updateRedirectSetting("stake", e.target.checked);
-    });
-
     const tzSelect = document.getElementById("settingTimezone");
     if (tzSelect) {
       tzSelect.addEventListener("change", async (e) => {
@@ -95,27 +85,13 @@ const settingsApp = {
 
   async loadSettings() {
     const data = await chrome.storage.local.get({
-      redirectSettings: { instagram: true, telegram: true, stake: true },
       timezone: "UTC",
     });
-    const s = data.redirectSettings || {};
-    document.getElementById("toggleInstagram").checked = s.instagram !== false;
-    document.getElementById("toggleTelegram").checked = s.telegram !== false;
-    document.getElementById("toggleStake").checked = s.stake !== false;
 
     const tzSelect = document.getElementById("settingTimezone");
     if (tzSelect) {
       tzSelect.value = data.timezone || "UTC";
     }
-  },
-
-  async updateRedirectSetting(key, enabled) {
-    const data = await chrome.storage.local.get({
-      redirectSettings: { instagram: true, telegram: true, stake: true },
-    });
-    const s = data.redirectSettings || { instagram: true, telegram: true, stake: true };
-    s[key] = enabled;
-    await chrome.storage.local.set({ redirectSettings: s });
   },
 };
 

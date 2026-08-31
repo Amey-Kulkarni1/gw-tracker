@@ -6,7 +6,6 @@
   "permissions": [
     "storage",
     "contextMenus",
-    "webNavigation",
     "tabs"
   ],
   "host_permissions": [],
