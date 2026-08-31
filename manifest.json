@@ -30,6 +30,7 @@
         "*://twitter.com/*"
       ],
       "js": [
+        "skinsData.js",
         "content.js"
       ]
     }

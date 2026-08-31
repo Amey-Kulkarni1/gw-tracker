@@ -1,0 +1,137 @@
+// skinsData.js - CS2 items data definitions: Knives, Skins, Gloves, Weapons, Wears
+
+(function (root) {
+  const CS2_DATA = {
+    KNIFE_MODELS: [
+      { regex: /\bm9\s*(?:bayonet(?:\s+knife)?)?\b/i, name: "M9 Bayonet Knife", generic: false },
+      { regex: /\bshadow\s+daggers?(?:\s+knife)?\b/i, name: "Shadow Daggers Knife", generic: false },
+      { regex: /\bbowie(?:\s+knife)?\b/i, name: "Bowie Knife", generic: false },
+      { regex: /\b(?:butterfly(?:\s+knife)?|bfk)\b/i, name: "Butterfly Knife", generic: false },
+      { regex: /\bfalchion(?:\s+knife)?\b/i, name: "Falchion Knife", generic: false },
+      { regex: /\bhuntsman(?:\s+knife)?\b/i, name: "Huntsman Knife", generic: false },
+      { regex: /\b(?:karambit(?:\s+knife)?|kara)\b/i, name: "Karambit Knife", generic: false },
+      { regex: /\bkukri(?:\s+knife)?\b/i, name: "Kukri Knife", generic: false },
+      { regex: /\bbayonet(?:\s+knife)?\b/i, name: "Bayonet Knife", generic: false },
+      { regex: /\bnavaja(?:\s+knife)?\b/i, name: "Navaja Knife", generic: false },
+      { regex: /\bparacord(?:\s+knife)?\b/i, name: "Paracord Knife", generic: false },
+      { regex: /\bstiletto(?:\s+knife)?\b/i, name: "Stiletto Knife", generic: false },
+      { regex: /\btalon(?:\s+knife)?\b/i, name: "Talon Knife", generic: false },
+      { regex: /\bursus(?:\s+knife)?\b/i, name: "Ursus Knife", generic: false },
+      // Generic English words used as knife names
+      { regex: /\bclassic(?:\s+knife)?\b/i, explicitRegex: /\bclassic\s+knife\b/i, name: "Classic Knife", generic: true },
+      { regex: /\bflip(?:\s+knife)?\b/i, explicitRegex: /\bflip\s+knife\b/i, name: "Flip Knife", generic: true },
+      { regex: /\bgut(?:\s+knife)?\b/i, explicitRegex: /\bgut\s+knife\b/i, name: "Gut Knife", generic: true },
+      { regex: /\bnomad(?:\s+knife)?\b/i, explicitRegex: /\bnomad\s+knife\b/i, name: "Nomad Knife", generic: true },
+      { regex: /\bskeleton(?:\s+knife)?\b/i, explicitRegex: /\bskeleton\s+knife\b/i, name: "Skeleton Knife", generic: true },
+      { regex: /\bsurvival(?:\s+knife)?\b/i, explicitRegex: /\bsurvival\s+knife\b/i, name: "Survival Knife", generic: true },
+    ],
+
+    KNIFE_SKINS: [
+      // Multi-word skins first
+      { regex: /\bgamma\s+doppler\b/i, name: "Gamma Doppler" },
+      { regex: /\bmarble\s+fade\b/i, name: "Marble Fade" },
+      { regex: /\bblack\s+laminate\b/i, name: "Black Laminate" },
+      { regex: /\bblue\s+steel\b/i, name: "Blue Steel" },
+      { regex: /\bboreal\s+forest\b/i, name: "Boreal Forest" },
+      { regex: /\bbright\s+water\b/i, name: "Bright Water" },
+      { regex: /\bcase\s+hardened\b/i, name: "Case Hardened" },
+      { regex: /\bcrimson\s+web\b/i, name: "Crimson Web" },
+      { regex: /\bdamascus\s+steel\b/i, name: "Damascus Steel" },
+      { regex: /\bforest\s+ddpat\b/i, name: "Forest DDPAT" },
+      { regex: /\bnight\s+stripe\b/i, name: "Night Stripe" },
+      { regex: /\brust\s+coat\b/i, name: "Rust Coat" },
+      { regex: /\bsafari\s+mesh\b/i, name: "Safari Mesh" },
+      { regex: /\btiger\s+tooth\b/i, name: "Tiger Tooth" },
+      { regex: /\burban\s+masked\b/i, name: "Urban Masked" },
+      // Single-word skins
+      { regex: /\bautotronic\b/i, name: "Autotronic" },
+      { regex: /\bdoppler\b/i, name: "Doppler" },
+      { regex: /\bfade\b/i, name: "Fade" },
+      { regex: /\bfreehand\b/i, name: "Freehand" },
+      { regex: /\blore\b/i, name: "Lore" },
+      { regex: /\bnight\b/i, name: "Night" },
+      { regex: /\bscorched\b/i, name: "Scorched" },
+      { regex: /\bslaughter\b/i, name: "Slaughter" },
+      { regex: /\bstained\b/i, name: "Stained" },
+      { regex: /\bultraviolet\b/i, name: "Ultraviolet" },
+      { regex: /\bvanilla\b/i, name: "Vanilla" },
+    ],
+
+    GLOVES: [
+      { regex: /\bhand\s*wraps?\b/i, name: "hand wraps gloves" },
+      { regex: /\bbroken\s+fang\b/i, name: "broken fang gloves" },
+      { regex: /\bsport(?:s)?\b/i, name: "sport gloves" },
+      { regex: /\bspecialist\b/i, name: "specialist gloves" },
+      { regex: /\bmoto\b/i, name: "moto gloves" },
+      { regex: /\bdriver\b/i, name: "driver gloves" },
+      { regex: /\bbloodhound\b/i, name: "bloodhound gloves" },
+      { regex: /\bhydra\b/i, name: "hydra gloves" },
+    ],
+
+    WEAPONS: [
+      { regex: /\bak[- ]?47\b/i, name: "AK-47" },
+      { regex: /\bm4a1[- ]?s\b/i, name: "M4A1-S" },
+      { regex: /\bm4a4\b/i, name: "M4A4" },
+      { regex: /\bm4a1\b/i, name: "M4A1" },
+      { regex: /\bawp\b/i, name: "AWP" },
+      { regex: /\bdesert\s+eagle\b/i, name: "Desert Eagle" },
+      { regex: /\bdeagle\b/i, name: "Deagle" },
+      { regex: /\busp[- ]?s\b/i, name: "USP-S" },
+      { regex: /\busp\b/i, name: "USP" },
+      { regex: /\bglock(?:[- ]?18)?\b/i, name: "Glock" },
+      { regex: /\bgalil(?:[- ]?ar)?\b/i, name: "Galil" },
+      { regex: /\bfamas\b/i, name: "FAMAS" },
+      { regex: /\bmp9\b/i, name: "MP9" },
+      { regex: /\bmac[- ]?10\b/i, name: "MAC-10" },
+      { regex: /\bp250\b/i, name: "P250" },
+      { regex: /\bfive[- ]?seven\b/i, name: "Five-SeveN" },
+      { regex: /\bcz75(?:[- ]?auto)?\b/i, name: "CZ75-Auto" },
+      { regex: /\btec[- ]?9\b/i, name: "Tec-9" },
+      { regex: /\bssg(?:[- ]?08)?\b/i, name: "SSG 08" },
+      { regex: /\bscout\b/i, name: "Scout" },
+      { regex: /\bsg[- ]?553\b/i, name: "SG 553" },
+      { regex: /\baug\b/i, name: "AUG" },
+      { regex: /\bmp7\b/i, name: "MP7" },
+      { regex: /\bp90\b/i, name: "P90" },
+      { regex: /\bump(?:[- ]?45)?\b/i, name: "UMP-45" },
+      { regex: /\b(?:pp[- ]?)?bizon\b/i, name: "PP-Bizon" },
+      { regex: /\bnova\b/i, name: "Nova" },
+      { regex: /\bxm1014\b/i, name: "XM1014" },
+      { regex: /\bmag[- ]?7\b/i, name: "MAG-7" },
+      { regex: /\bsawed[- ]?off\b/i, name: "Sawed-Off" },
+      { regex: /\bm249\b/i, name: "M249" },
+      { regex: /\bnegev\b/i, name: "Negev" },
+      { regex: /\bg3sg1\b/i, name: "G3SG1" },
+      { regex: /\bscar[- ]?20\b/i, name: "SCAR-20" },
+    ],
+
+    WEARS: [
+      { regex: /\b(?:factory[\s_-]?new|fn)\b/i, abbr: "FN", fullName: "Factory New" },
+      { regex: /\b(?:minimal[\s_-]?wear|mw)\b/i, abbr: "MW", fullName: "Minimal Wear" },
+      { regex: /\b(?:field[\s_-]?tested|ft(?!\s*[@.]))\b/i, abbr: "FT", fullName: "Field-Tested" },
+      { regex: /\b(?:well[\s_-]?worn|ww)\b/i, abbr: "WW", fullName: "Well-Worn" },
+      { regex: /\b(?:battle[\s_-]?scarred|bs)\b/i, abbr: "BS", fullName: "Battle-Scarred" },
+    ],
+
+    CS2_HINTS: [
+      /\bcs2\b/i,
+      /\bcsgo\b/i,
+      /\bfactory[\s_-]?new\b/i,
+      /\bminimal[\s_-]?wear\b/i,
+      /\bfield[\s_-]?tested\b/i,
+      /\bwell[\s_-]?worn\b/i,
+      /\bbattle[\s_-]?scarred\b/i,
+      /\bfn\b/i,
+      /\bmw\b/i,
+      /\bft(?!\s*[@.])\b/i,
+      /\bww\b/i,
+      /\bbs\b/i,
+    ],
+  };
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = CS2_DATA;
+  } else {
+    root.CS2_DATA = CS2_DATA;
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);

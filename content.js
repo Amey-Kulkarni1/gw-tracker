@@ -366,7 +366,55 @@ function extractDaysFromText(text) {
 function extractPrizeFromText(text) {
   if (!text) return null;
 
-  // Patterns to match USD amounts (first match wins)
+  const data = typeof CS2_DATA !== "undefined" ? CS2_DATA : null;
+  if (!data) return null;
+
+  // 1. Knife detection (Model -> Skin -> Wear)
+  const hasKnifeContext = /\bknives\b|\bknife\b|★|\bcs2\b|\bcsgo\b/i.test(text);
+
+  let matchedSkin = null;
+  for (const s of data.KNIFE_SKINS) {
+    if (s.regex.test(text)) {
+      matchedSkin = s.name;
+      break;
+    }
+  }
+
+  let matchedModel = null;
+  for (const k of data.KNIFE_MODELS) {
+    if (k.generic) {
+      if (k.explicitRegex.test(text) || (k.regex.test(text) && (hasKnifeContext || matchedSkin))) {
+        matchedModel = k.name;
+        break;
+      }
+    } else if (k.regex.test(text)) {
+      matchedModel = k.name;
+      break;
+    }
+  }
+
+  if (matchedModel || (hasKnifeContext && /\bknives\b|\bknife\b/i.test(text))) {
+    const modelName = matchedModel || "Knife";
+    const isStatTrak = /\b(?:stat[\s-]?trak(?:™)?|stattrak(?:™)?)\b/i.test(text) || /\bST(?!\.)\b/i.test(text);
+
+    let matchedWear = null;
+    for (const w of data.WEARS) {
+      if (w.regex.test(text)) {
+        matchedWear = w.abbr;
+        break;
+      }
+    }
+
+    const parts = [];
+    if (isStatTrak) parts.push("ST");
+    parts.push(modelName);
+    if (matchedSkin) parts.push(matchedSkin);
+    if (matchedWear) parts.push(matchedWear);
+
+    return parts.join(" ");
+  }
+
+  // 2. Patterns to match USD amounts (first match wins)
   const patterns = [
     /\$(\d+(?:,\d{3})*(?:\.\d{2})?)/,           // $50, $100, $50.00, $1,000
     /(\d+(?:,\d{3})*(?:\.\d{2})?)\s*\$/,         // 50$, 100$, 50.00$
@@ -384,49 +432,8 @@ function extractPrizeFromText(text) {
     }
   }
 
-  const specificKnives = [
-    { regex: /\bm9\s+bayonet\b/i, name: "m9 bayonet knife" },
-    { regex: /\bshadow\s+daggers?\b/i, name: "shadow daggers knife" },
-    { regex: /\bbowie\b/i, name: "bowie knife" },
-    { regex: /\bbutterfly\b/i, name: "butterfly knife" },
-    { regex: /\bclassic\b/i, name: "classic knife" },
-    { regex: /\bfalchion\b/i, name: "falchion knife" },
-    { regex: /\bflip\b/i, name: "flip knife" },
-    { regex: /\bgut\b/i, name: "gut knife" },
-    { regex: /\bhuntsman\b/i, name: "huntsman knife" },
-    { regex: /\bkarambit\b/i, name: "karambit knife" },
-    { regex: /\bkukri\b/i, name: "kukri knife" },
-    { regex: /\bbayonet\b/i, name: "bayonet knife" },
-    { regex: /\bnavaja\b/i, name: "navaja knife" },
-    { regex: /\bnomad\b/i, name: "nomad knife" },
-    { regex: /\bparacord\b/i, name: "paracord knife" },
-    { regex: /\bskeleton\b/i, name: "skeleton knife" },
-    { regex: /\bstiletto\b/i, name: "stiletto knife" },
-    { regex: /\bsurvival\b/i, name: "survival knife" },
-    { regex: /\btalon\b/i, name: "talon knife" },
-    { regex: /\bursus\b/i, name: "ursus knife" },
-  ];
-
-  for (const k of specificKnives) {
-    if (k.regex.test(text)) {
-      return k.name;
-    }
-  }
-
-  if (/\bknife\b/i.test(text)) return "knife";
-
-  const specificGloves = [
-    { regex: /\bhand\s*wraps?\b/i, name: "hand wraps gloves" },
-    { regex: /\bbroken\s+fang\b/i, name: "broken fang gloves" },
-    { regex: /\bsport(?:s)?\b/i, name: "sport gloves" },
-    { regex: /\bspecialist\b/i, name: "specialist gloves" },
-    { regex: /\bmoto\b/i, name: "moto gloves" },
-    { regex: /\bdriver\b/i, name: "driver gloves" },
-    { regex: /\bbloodhound\b/i, name: "bloodhound gloves" },
-    { regex: /\bhydra\b/i, name: "hydra gloves" },
-  ];
-
-  for (const g of specificGloves) {
+  // 3. Gloves detection
+  for (const g of data.GLOVES) {
     if (g.regex.test(text)) {
       return g.name;
     }
@@ -434,64 +441,15 @@ function extractPrizeFromText(text) {
 
   if (/\bgloves?\b/i.test(text)) return "gloves";
 
-  const weaponModels = [
-    { regex: /\bak[- ]?47\b/i, name: "AK-47" },
-    { regex: /\bm4a1[- ]?s\b/i, name: "M4A1-S" },
-    { regex: /\bm4a4\b/i, name: "M4A4" },
-    { regex: /\bm4a1\b/i, name: "M4A1" },
-    { regex: /\bawp\b/i, name: "AWP" },
-    { regex: /\bdesert\s+eagle\b/i, name: "Desert Eagle" },
-    { regex: /\bdeagle\b/i, name: "Deagle" },
-    { regex: /\busp[- ]?s\b/i, name: "USP-S" },
-    { regex: /\busp\b/i, name: "USP" },
-    { regex: /\bglock(?:[- ]?18)?\b/i, name: "Glock" },
-    { regex: /\bgalil(?:[- ]?ar)?\b/i, name: "Galil" },
-    { regex: /\bfamas\b/i, name: "FAMAS" },
-    { regex: /\bmp9\b/i, name: "MP9" },
-    { regex: /\bmac[- ]?10\b/i, name: "MAC-10" },
-    { regex: /\bp250\b/i, name: "P250" },
-    { regex: /\bfive[- ]?seven\b/i, name: "Five-SeveN" },
-    { regex: /\bcz75(?:[- ]?auto)?\b/i, name: "CZ75-Auto" },
-    { regex: /\btec[- ]?9\b/i, name: "Tec-9" },
-    { regex: /\bssg(?:[- ]?08)?\b/i, name: "SSG 08" },
-    { regex: /\bscout\b/i, name: "Scout" },
-    { regex: /\bsg[- ]?553\b/i, name: "SG 553" },
-    { regex: /\baug\b/i, name: "AUG" },
-    { regex: /\bmp7\b/i, name: "MP7" },
-    { regex: /\bp90\b/i, name: "P90" },
-    { regex: /\bump(?:[- ]?45)?\b/i, name: "UMP-45" },
-    { regex: /\b(?:pp[- ]?)?bizon\b/i, name: "PP-Bizon" },
-    { regex: /\bnova\b/i, name: "Nova" },
-    { regex: /\bxm1014\b/i, name: "XM1014" },
-    { regex: /\bmag[- ]?7\b/i, name: "MAG-7" },
-    { regex: /\bsawed[- ]?off\b/i, name: "Sawed-Off" },
-    { regex: /\bm249\b/i, name: "M249" },
-    { regex: /\bnegev\b/i, name: "Negev" },
-    { regex: /\bg3sg1\b/i, name: "G3SG1" },
-    { regex: /\bscar[- ]?20\b/i, name: "SCAR-20" },
-  ];
-
-  for (const weapon of weaponModels) {
+  // 4. Weapon models detection
+  for (const weapon of data.WEAPONS) {
     if (weapon.regex.test(text)) {
       return weapon.name;
     }
   }
 
-  const cs2SkinHints = [
-    /\bcs2\b/i,
-    /\bcsgo\b/i,
-    /\bfactory\s+new\b/i,
-    /\bminimal\s+wear\b/i,
-    /\bfield[\s-]?tested\b/i,
-    /\bwell\s+worn\b/i,
-    /\bbattle\s+scarred\b/i,
-    /\bfn\b/i,
-    /\bmw\b/i,
-    /\bft\b/i,
-    /\bww\b/i,
-    /\bbs\b/i,
-  ];
-  if (cs2SkinHints.some((re) => re.test(text))) return "cs2 skin";
+  // 5. Fallback CS2 skin hint
+  if (data.CS2_HINTS && data.CS2_HINTS.some((re) => re.test(text))) return "cs2 skin";
 
   return null;
 }
