@@ -127,6 +127,75 @@
       /\bww\b/i,
       /\bbs\b/i,
     ],
+
+    STEAM_KNIFE_WEAPONS: {
+      "Bayonet Knife": "Bayonet",
+      "M9 Bayonet Knife": "M9 Bayonet",
+      "Karambit Knife": "Karambit",
+      "Shadow Daggers Knife": "Shadow Daggers",
+      "Bowie Knife": "Bowie Knife",
+      "Butterfly Knife": "Butterfly Knife",
+      "Classic Knife": "Classic Knife",
+      "Falchion Knife": "Falchion Knife",
+      "Flip Knife": "Flip Knife",
+      "Gut Knife": "Gut Knife",
+      "Huntsman Knife": "Huntsman Knife",
+      "Kukri Knife": "Kukri Knife",
+      "Navaja Knife": "Navaja Knife",
+      "Nomad Knife": "Nomad Knife",
+      "Paracord Knife": "Paracord Knife",
+      "Skeleton Knife": "Skeleton Knife",
+      "Stiletto Knife": "Stiletto Knife",
+      "Survival Knife": "Survival Knife",
+      "Talon Knife": "Talon Knife",
+      "Ursus Knife": "Ursus Knife",
+    },
+
+    buildKnifeMarketHashName: function ({ model, skin, wear, isStatTrak }) {
+      if (!model || !skin || !wear) return null;
+      const weaponName = CS2_DATA.STEAM_KNIFE_WEAPONS[model] || model;
+      const wearObj = CS2_DATA.WEARS.find((w) => w.abbr === wear || w.fullName === wear);
+      if (!wearObj) return null;
+      const prefix = isStatTrak ? "★ StatTrak™ " : "★ ";
+      return `${prefix}${weaponName} | ${skin} (${wearObj.fullName})`;
+    },
+
+    fetchCSFloatPrice: async function (marketHashName) {
+      if (!marketHashName) return null;
+
+      // When running in content script, delegate to background service worker to bypass page CSP
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage && !chrome.runtime.getBackgroundPage) {
+        try {
+          const response = await new Promise((resolve) => {
+            chrome.runtime.sendMessage(
+              { action: "fetchCSFloatPrice", marketHashName },
+              (res) => {
+                if (chrome.runtime.lastError) {
+                  console.warn("[CSFloat Message Warn]:", chrome.runtime.lastError);
+                  return resolve(null);
+                }
+                resolve(res);
+              }
+            );
+          });
+          if (response && response.price != null) return response.price;
+        } catch (e) {
+          console.warn("[CSFloat Background Fetch Warn]:", e);
+        }
+      }
+
+      // Direct fetch fallback (for background worker, options page, or Node.js)
+      try {
+        const url = `https://api.openskin.dev/v1/prices/csfloat?item=${encodeURIComponent(marketHashName)}`;
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.ask != null ? data.ask : null;
+      } catch (err) {
+        console.error("[CSFloat API Error]:", err);
+        return null;
+      }
+    },
   };
 
   if (typeof module !== "undefined" && module.exports) {

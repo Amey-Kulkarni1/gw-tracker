@@ -1,3 +1,28 @@
+try {
+  importScripts("skinsData.js");
+} catch (e) {
+  console.error("[Background] Failed to import skinsData.js:", e);
+}
+
+// --- Listen for messages from content scripts ---
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "fetchCSFloatPrice") {
+    (async () => {
+      try {
+        const url = `https://api.openskin.dev/v1/prices/csfloat?item=${encodeURIComponent(request.marketHashName)}`;
+        const response = await fetch(url);
+        if (!response.ok) return sendResponse({ price: null });
+        const data = await response.json();
+        sendResponse({ price: data.ask != null ? data.ask : null });
+      } catch (e) {
+        console.error("[Background] CSFloat Fetch Error:", e);
+        sendResponse({ price: null });
+      }
+    })();
+    return true; // Keep channel open for async response
+  }
+});
+
 // --- Main setup on install/update ---
 chrome.runtime.onInstalled.addListener(() => {
   rebuildContextMenus();

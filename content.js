@@ -363,7 +363,7 @@ function extractDaysFromText(text) {
   return null;
 }
 
-function extractPrizeFromText(text) {
+async function extractPrizeFromText(text) {
   if (!text) return null;
 
   const data = typeof CS2_DATA !== "undefined" ? CS2_DATA : null;
@@ -395,7 +395,7 @@ function extractPrizeFromText(text) {
 
   if (matchedModel || (hasKnifeContext && /\bknives\b|\bknife\b/i.test(text))) {
     const modelName = matchedModel || "Knife";
-    const isStatTrak = /\b(?:stat[\s-]?trak(?:™)?|stattrak(?:™)?)\b/i.test(text) || /\bST(?!\.)\b/i.test(text);
+    const isStatTrak = /\b(?:stat[\s-]?trak(?:™)?|stattrak(?:™)?)\b/i.test(text) || /\bST\b/.test(text);
 
     let matchedWear = null;
     for (const w of data.WEARS) {
@@ -405,6 +405,27 @@ function extractPrizeFromText(text) {
       }
     }
 
+    // Fully detected knife: Model + Skin + Wear -> Get Market Hash Name & Live Price
+    if (matchedModel && matchedSkin && matchedWear && data.buildKnifeMarketHashName) {
+      const hashName = data.buildKnifeMarketHashName({
+        model: matchedModel,
+        skin: matchedSkin,
+        wear: matchedWear,
+        isStatTrak,
+      });
+
+      if (hashName) {
+        if (data.fetchCSFloatPrice) {
+          const livePrice = await data.fetchCSFloatPrice(hashName);
+          if (livePrice != null) {
+            return `${hashName} [$${livePrice}]`;
+          }
+        }
+        return hashName;
+      }
+    }
+
+    // Partial detection fallback (no live price query)
     const parts = [];
     if (isStatTrak) parts.push("ST");
     parts.push(modelName);
@@ -517,7 +538,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           result = extractDaysFromText(text);
         }
         // Always try to extract prize from tweet text
-        prize = extractPrizeFromText(text);
+        prize = await extractPrizeFromText(text);
         console.log("[Content] Extracted prize:", prize);
       }
 
