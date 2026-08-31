@@ -217,11 +217,13 @@ async function processAutoSave(tab, url) {
     }
   }
 
-  let title = tab.title || url;
-  if (url.includes("gleam.io") && !title.toLowerCase().includes("gleam")) {
-    title = `${title} Gleam`;
-  } else if (url.includes("sweepwidget.com") && !title.toLowerCase().includes("sweepwidget")) {
-    title = `${title} SweepWidget`;
+  let title = url;
+  if (url.includes("gleam.io")) {
+    const rawTitle = tab.title || url;
+    title = rawTitle.toLowerCase().includes("gleam") ? rawTitle : `${rawTitle} Gleam`;
+  } else if (url.includes("sweepwidget.com")) {
+    const rawTitle = tab.title || url;
+    title = rawTitle.toLowerCase().includes("sweepwidget") ? rawTitle : `${rawTitle} SweepWidget`;
   }
 
   saveItemDirectly(url, dateString, prize, title);
