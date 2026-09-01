@@ -435,7 +435,73 @@ async function extractPrizeFromText(text) {
     return parts.join(" ");
   }
 
-  // 2. Patterns to match USD amounts (first match wins)
+  // 2. Glove detection (Model -> Skin -> Wear)
+  const hasGloveContext = /\bgloves?\b|\bwraps?\b|★|\bcs2\b|\bcsgo\b/i.test(text);
+
+  let matchedGloveSkin = null;
+  if (data.GLOVE_SKINS) {
+    for (const s of data.GLOVE_SKINS) {
+      if (s.regex.test(text)) {
+        matchedGloveSkin = s.name;
+        break;
+      }
+    }
+  }
+
+  let matchedGloveModel = null;
+  const gloveModels = data.GLOVE_MODELS || data.GLOVES || [];
+  for (const g of gloveModels) {
+    if (g.generic) {
+      if (g.explicitRegex ? (g.explicitRegex.test(text) || (g.regex.test(text) && (hasGloveContext || matchedGloveSkin))) : g.regex.test(text)) {
+        matchedGloveModel = g.name;
+        break;
+      }
+    } else if (g.regex.test(text)) {
+      matchedGloveModel = g.name;
+      break;
+    }
+  }
+
+  if (matchedGloveModel || (hasGloveContext && /\bgloves?\b/i.test(text))) {
+    const modelName = matchedGloveModel || "Gloves";
+
+    let matchedWear = null;
+    for (const w of data.WEARS) {
+      if (w.regex.test(text)) {
+        matchedWear = w.abbr;
+        break;
+      }
+    }
+
+    // Fully detected glove: Model + Skin + Wear -> Get Market Hash Name & Live Price
+    if (matchedGloveModel && matchedGloveSkin && matchedWear && data.buildGloveMarketHashName) {
+      const hashName = data.buildGloveMarketHashName({
+        model: matchedGloveModel,
+        skin: matchedGloveSkin,
+        wear: matchedWear,
+      });
+
+      if (hashName) {
+        if (data.fetchCSFloatPrice) {
+          const livePrice = await data.fetchCSFloatPrice(hashName);
+          if (livePrice != null) {
+            return `${hashName} [$${livePrice}]`;
+          }
+        }
+        return hashName;
+      }
+    }
+
+    // Partial detection fallback (no live price query)
+    const parts = [];
+    parts.push(modelName);
+    if (matchedGloveSkin) parts.push(matchedGloveSkin);
+    if (matchedWear) parts.push(matchedWear);
+
+    return parts.join(" ");
+  }
+
+  // 3. Patterns to match USD amounts (first match wins)
   const patterns = [
     /\$(\d+(?:,\d{3})*(?:\.\d{2})?)/,           // $50, $100, $50.00, $1,000
     /(\d+(?:,\d{3})*(?:\.\d{2})?)\s*\$/,         // 50$, 100$, 50.00$
@@ -452,15 +518,6 @@ async function extractPrizeFromText(text) {
       }
     }
   }
-
-  // 3. Gloves detection
-  for (const g of data.GLOVES) {
-    if (g.regex.test(text)) {
-      return g.name;
-    }
-  }
-
-  if (/\bgloves?\b/i.test(text)) return "gloves";
 
   // 4. Weapon models detection
   for (const weapon of data.WEAPONS) {
