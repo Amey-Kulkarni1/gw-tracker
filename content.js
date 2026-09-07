@@ -501,7 +501,128 @@ async function extractPrizeFromText(text) {
     return parts.join(" ");
   }
 
-  // 3. Patterns to match USD amounts (first match wins)
+  // 3. Weapon detection
+  // ponytail: detects weapon name first across all CS2 weapons, then resolves skin and live CSFloat price
+  if (data.WEAPON_SKINS) {
+    const isStatTrak = /\b(?:stat[\s-]?trak(?:™)?|stattrak(?:™)?)\b/i.test(text) || /\bST\b/.test(text);
+    const isSouvenir = /\bsouvenir\b/i.test(text);
+
+    let matchedWear = null;
+    for (const w of data.WEARS) {
+      if (w.regex.test(text)) {
+        matchedWear = w.abbr;
+        break;
+      }
+    }
+
+    // Step A: Check for weapon name first
+    let detectedWeapon = null;
+
+    // 1. Explicit weapon models (AK-47, AWP, M4A1-S, M4A4)
+    if (data.WEAPON_MODELS) {
+      for (const wm of data.WEAPON_MODELS) {
+        if (wm.regex.test(text)) {
+          detectedWeapon = wm.name;
+          break;
+        }
+      }
+    }
+
+    // 2. All other CS2 weapons from WEAPONS
+    if (!detectedWeapon && data.WEAPONS) {
+      for (const w of data.WEAPONS) {
+        if (w.regex.test(text)) {
+          if (w.name === "Deagle") detectedWeapon = "Desert Eagle";
+          else if (w.name === "USP") detectedWeapon = "USP-S";
+          else if (w.name === "M4A1") detectedWeapon = "M4A1-S";
+          else if (w.name === "Glock") detectedWeapon = "Glock-18";
+          else detectedWeapon = w.name;
+          break;
+        }
+      }
+    }
+
+    // 3. Short aliases ("AK", "M4")
+    if (!detectedWeapon && data.WEAPON_MODELS) {
+      for (const wm of data.WEAPON_MODELS) {
+        if (wm.shortRegex && wm.shortRegex.test(text)) {
+          if (wm.name === "M4A1-S" || wm.name === "M4A4") {
+            const a1Skins = data.WEAPON_SKINS["M4A1-S"] || [];
+            const a4Skins = data.WEAPON_SKINS["M4A4"] || [];
+            if (a1Skins.some(s => s.regex.test(text))) {
+              detectedWeapon = "M4A1-S";
+            } else if (a4Skins.some(s => s.regex.test(text))) {
+              detectedWeapon = "M4A4";
+            } else {
+              detectedWeapon = "M4A4";
+            }
+          } else {
+            detectedWeapon = wm.name;
+          }
+          break;
+        }
+      }
+    }
+
+    // Step B: If weapon name detected, search for skin
+    let detectedSkin = null;
+    if (detectedWeapon) {
+      const weaponSkins = data.WEAPON_SKINS[detectedWeapon] || [];
+      for (const s of weaponSkins) {
+        if (s.regex.test(text)) {
+          detectedSkin = s.name;
+          break;
+        }
+      }
+      if (!detectedSkin) {
+        for (const skins of Object.values(data.WEAPON_SKINS)) {
+          for (const s of skins) {
+            if (s.regex.test(text)) {
+              detectedSkin = s.name;
+              break;
+            }
+          }
+          if (detectedSkin) break;
+        }
+      }
+    }
+
+    // If full weapon + skin detected:
+    if (detectedWeapon && detectedSkin) {
+      // Fully detected weapon: Weapon + Skin + Wear -> Market Hash Name & Live Price
+      if (matchedWear && data.buildWeaponMarketHashName) {
+        const hashName = data.buildWeaponMarketHashName({
+          weapon: detectedWeapon,
+          skin: detectedSkin,
+          wear: matchedWear,
+          isStatTrak,
+          isSouvenir,
+        });
+
+        if (hashName) {
+          if (data.fetchCSFloatPrice) {
+            const livePrice = await data.fetchCSFloatPrice(hashName);
+            if (livePrice != null) {
+              return `${hashName} [$${livePrice}]`;
+            }
+          }
+          return hashName;
+        }
+      }
+
+      // Partial detection fallback (Weapon + Skin without Wear)
+      const parts = [];
+      if (isStatTrak) parts.push("ST");
+      if (isSouvenir) parts.push("Souvenir");
+      parts.push(detectedWeapon);
+      parts.push(detectedSkin);
+      if (matchedWear) parts.push(matchedWear);
+
+      return parts.join(" ");
+    }
+  }
+
+  // 4. Patterns to match USD amounts (first match wins)
   const patterns = [
     /\$(\d+(?:,\d{3})*(?:\.\d{2})?)/,           // $50, $100, $50.00, $1,000
     /(\d+(?:,\d{3})*(?:\.\d{2})?)\s*\$/,         // 50$, 100$, 50.00$
@@ -519,14 +640,14 @@ async function extractPrizeFromText(text) {
     }
   }
 
-  // 4. Weapon models detection
+  // 5. Weapon models detection
   for (const weapon of data.WEAPONS) {
     if (weapon.regex.test(text)) {
       return weapon.name;
     }
   }
 
-  // 5. Fallback CS2 skin hint
+  // 6. Fallback CS2 skin hint
   if (data.CS2_HINTS && data.CS2_HINTS.some((re) => re.test(text))) return "cs2 skin";
 
   return null;
