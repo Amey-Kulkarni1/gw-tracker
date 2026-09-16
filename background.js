@@ -213,11 +213,22 @@ async function processAutoSave(tab, url) {
   let dateString = "";
 
   if (detectedResult) {
+    // ponytail: subtract 1 day for vloot giveaways
+    const isVloot = (url || "").toLowerCase().includes("vloot") || (tab?.url || "").toLowerCase().includes("vloot");
+
     if (detectedResult.type === 'absolute') {
       dateString = detectedResult.value;
+      if (isVloot) {
+        const targetDate = new Date(dateString + "T12:00:00");
+        targetDate.setDate(targetDate.getDate() - 1);
+        const year = targetDate.getFullYear();
+        const month = String(targetDate.getMonth() + 1).padStart(2, "0");
+        const day = String(targetDate.getDate()).padStart(2, "0");
+        dateString = `${year}-${month}-${day}`;
+      }
     }
     else if (detectedResult.type === 'relative') {
-      const days = detectedResult.value;
+      const days = detectedResult.value - (isVloot ? 1 : 0);
       let baseDate = new Date();
 
       // Try to get Tweet Date as base
